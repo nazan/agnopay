@@ -61,7 +61,7 @@ $subject = $service->create(1.99, 'MVR');
 use SurfingCrab\AgnoPay\Service as AgnoPayService;
 use SurfingCrab\AgnoPay\Reference\PdoSqliteDataLayer;
 use SurfingCrab\AgnoPay\DataModels\ResultModel;
-use SurfingCrab\AgnoPay\Exceptions\Excption as MyException;
+use SurfingCrab\AgnoPay\Exceptions\Exception as MyException;
 
 // Create the main service instance.
 $service = new AgnoPayService(new PdoSqliteDataLayer(new \PDO("mysql:host=example;dbname=example", 'user', 'password')));
@@ -79,7 +79,10 @@ try {
     }
 
     if($result->getType() === ResultModel::TYPE_FAILED) {
-        // Show failed message to user and end.
+        /*
+        The payment request will be aborted and the service will not allow further proceedings.
+        Show failed message to user and stop further calls to $service->proceed(...).
+        */
         return __buildResponse("Failed with: {$result->getMessage()}");
     }
 
@@ -105,11 +108,10 @@ try {
     }
 } catch(MyException $excp) {
     /*
-    This indicates an error condition.
-    The payment request will be aborted and the service will not allow further proceedings.
-    End-user must be notified of this error.
+    This indicates an error condition and must never happen.
+    This error must be logged and end-user must be notified about it.
     */
-    throw $excp;
+    return __buildResponse("Failed with: {$excp->getMessage()}");
 }
 
 // Show success message to user and end.

@@ -274,7 +274,6 @@ class Service {
         try {
             return $vendorProcess->proceed($request, $input);
         } catch(AgnoPayException $excp) {
-            fwrite(STDOUT, 'err ' . $excp->getMessage() . PHP_EOL);
             return $this->failed($request->getAlias(), [
                 'code' => 0,
                 'message' => $excp->getMessage(),
