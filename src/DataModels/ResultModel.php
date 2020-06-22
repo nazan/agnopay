@@ -95,7 +95,7 @@ class ResultModel {
     public static function getFeedbackInstance(string $message)
     {
         $inst = new self();
-        $inst->setAsFailed($message);
+        $inst->setAsFeedback($message);
 
         return $inst;
     }
@@ -123,5 +123,10 @@ class ResultModel {
     public function getInputModel()
     {
         return $this->input;
+    }
+
+    public function getMessage()
+    {
+        return $this->message;
     }
 }

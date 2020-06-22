@@ -31,6 +31,71 @@ Basic flow of collecting a payment is as follows.
 
 - Call the 'proceed(RequestModel $newRequest, PsrRequest $input)' method of main service class which was built in 'Step 2' above. This call will always respond with an instance of 'SurfingCrab\AgnoPay\DataModels\ResultModel', which indicates one of several states. This method must be called repeatedly until all the steps are completed and a 'ResultModel' instance of type 'ResultModel::TYPE_COMPLETED' is returned.
 
+### Example usage scenario
+
+**IMPORTANT:** Functions/methods prefixed with double underscores '__' does not exist. They are meant as pseudocode to clarify the process.
+
+```PHP
+use SurfingCrab\AgnoPay\DataModels\ResultModel;
+use SurfingCrab\AgnoPay\Service as AgnoPayService;
+use SurfingCrab\AgnoPay\Exceptions\Excption as MyException;
+
+$service = new AgnoPayService(new PdoSqliteDataLayer($pdoDatabaseConnectionHandle));
+
+// First, enable the payment service providers that you need. From the supported ones, a subset can also be activated.
+$service->activateAllVendorProfiles();
+
+// Specify amount and currency for the new payment collection request.
+$subject = $service->create(1.99, 'MVR');
+
+do {
+    try {
+        if($userInput = __userHasProvidedInput()) {
+            $result = $service->proceed($subject->getAlias(), $userInput);
+        } else {
+            $result = $service->proceed($subject->getAlias());
+        }
+
+        if($result->getType() == ResultModel::TYPE_FEEDBACK) {
+            $feedbackMessage = $result->getMessage();
+
+            // Return with feedback message to user.
+            return __buildResponse($feedbackMessage);
+        }
+
+        if($result->getType() == ResultModel::TYPE_INPUT_COLLECTOR) {
+            $inputForm = __makeInputForm($result->getInputModel());
+            
+            // Return with form for user input collection.
+            return __buildResponse($inputForm);
+        }
+
+        if($result->getType() == ResultModel::TYPE_INPUT_COLLECTOR_REDIRECT) {
+            $inputFormOrRedirectTargetLink = __makeRedirectFormOrLink($result->getInputModel());
+            
+            // Redirect user or return with post form with external URI.
+            return __buildResponse($inputFormOrRedirectTargetLink);
+        }
+    } catch(MyException $excp) {
+        /*
+        This indicates an error condition.
+        The payment request will be aborted and the service will not allow further proceedings.
+        End-user must be notified of this error.
+        */
+        throw $excp;
+    }
+} while(!in_array($result->getType(), [ResultModel::TYPE_COMPLETE, ResultModel::TYPE_FAILED]);
+
+if($result->getType() === ResultModel::TYPE_FAILED) {
+    // Show failed message to user and end.
+    return __buildResponse("Failed with: {$result->getMessage()}");
+}
+
+// Show success message to user and end.
+return __buildResponse("Success");
+```
+
+
 To gain more understanding, refer to the following test cases in class 'ServiceTest' under 'tests' folder.
 
 - testBmlProceed()
