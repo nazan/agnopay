@@ -35,3 +35,9 @@ To gain more understanding, refer to the following test cases in class 'ServiceT
 
 - testBmlProceed()
 - testOoredooProceed()
+
+## Get involved
+
+Docker development environment for this project is provided in following Github repository.
+
+[Docker dev environment](https://github.com/nazan/agnopay-dev.git)
