@@ -71,47 +71,45 @@ $alias = __getAliasFromUserInput();
 // Retrieve the payment collection request object.
 $subject = $service->get($alias);
 
-do {
-    try {
-        if($userInput = __userHasProvidedInput()) {
-            $result = $service->proceed($subject->getAlias(), $userInput);
-        } else {
-            $result = $service->proceed($subject->getAlias());
-        }
-
-        if($result->getType() == ResultModel::TYPE_FEEDBACK) {
-            $feedbackMessage = $result->getMessage();
-
-            // Return with feedback message to user.
-            return __buildResponse($feedbackMessage);
-        }
-
-        if($result->getType() == ResultModel::TYPE_INPUT_COLLECTOR) {
-            $inputForm = __makeInputForm($result->getInputModel());
-            
-            // Return with form for user input collection.
-            return __buildResponse($inputForm);
-        }
-
-        if($result->getType() == ResultModel::TYPE_INPUT_COLLECTOR_REDIRECT) {
-            $inputFormOrRedirectTargetLink = __makeRedirectFormOrLink($result->getInputModel());
-            
-            // Redirect user or return with post form with external URI.
-            return __buildResponse($inputFormOrRedirectTargetLink);
-        }
-    } catch(MyException $excp) {
-        /*
-        This indicates an error condition.
-        The payment request will be aborted and the service will not allow further proceedings.
-        End-user must be notified of this error.
-        */
-        throw $excp;
+try {
+    if($userInput = __userHasProvidedInput()) {
+        $result = $service->proceed($subject->getAlias(), $userInput);
+    } else {
+        $result = $service->proceed($subject->getAlias());
     }
-} while(!in_array($result->getType(), [ResultModel::TYPE_COMPLETE, ResultModel::TYPE_FAILED]);
 
-if($result->getType() === ResultModel::TYPE_FAILED) {
-    // Show failed message to user and end.
-    return __buildResponse("Failed with: {$result->getMessage()}");
+    if($result->getType() === ResultModel::TYPE_FAILED) {
+        // Show failed message to user and end.
+        return __buildResponse("Failed with: {$result->getMessage()}");
+    }
+
+    if($result->getType() == ResultModel::TYPE_FEEDBACK) {
+        $feedbackMessage = $result->getMessage();
+
+        // Return with feedback message to user.
+        return __buildResponse($feedbackMessage);
+    }
+
+    if($result->getType() == ResultModel::TYPE_INPUT_COLLECTOR) {
+        $inputForm = __makeInputForm($result->getInputModel());
+        
+        // Return with form for user input collection.
+        return __buildResponse($inputForm);
+    }
+
+    if($result->getType() == ResultModel::TYPE_INPUT_COLLECTOR_REDIRECT) {
+        $inputFormOrRedirectTargetLink = __makeRedirectFormOrLink($result->getInputModel());
+        
+        // Redirect user or return with post form with external URI.
+        return __buildResponse($inputFormOrRedirectTargetLink);
+    }
+} catch(MyException $excp) {
+    /*
+    This indicates an error condition.
+    The payment request will be aborted and the service will not allow further proceedings.
+    End-user must be notified of this error.
+    */
+    throw $excp;
 }
 
 // Show success message to user and end.
