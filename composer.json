@@ -1,0 +1,26 @@
+{
+    "name": "nazan/agnopay",
+    "description": "Aggregator of online payment collection service providers in Maldives.",
+    "type": "library",
+    "license": "MIT",
+    "require-dev": {
+        "phpunit/phpunit": "^8.5"
+    },
+    "authors": [
+        {
+            "name": "Hussain Nazan Naeem",
+            "email": "hussain.nazan.naeem@gmail.com"
+        }
+    ],
+    "require": {
+        "guzzlehttp/psr7": "^1.6",
+        "bankofmaldives/bml-connect-php": "^2.0"
+    },
+    "autoload": {
+        "psr-4": {"SurfingCrab\\AgnoPay\\": "src/"},
+        "files": [
+            "src/global_helpers.php",
+            "tests/MyTestCase.php"
+        ]
+    }
+}
