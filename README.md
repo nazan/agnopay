@@ -31,22 +31,45 @@ Basic flow of collecting a payment is as follows.
 
 - Call the 'proceed(RequestModel $newRequest, PsrRequest $input)' method of main service class which was built in 'Step 2' above. This call will always respond with an instance of 'SurfingCrab\AgnoPay\DataModels\ResultModel', which indicates one of several states. This method must be called repeatedly until all the steps are completed and a 'ResultModel' instance of type 'ResultModel::TYPE_COMPLETED' is returned.
 
-### Example usage scenario
+### Example usage scenarios
 
 **IMPORTANT:** Functions/methods prefixed with double underscores '__' does not exist. They are meant as pseudocode to clarify the process.
 
+
+#### Create a new payment collection request
+
 ```PHP
-use SurfingCrab\AgnoPay\DataModels\ResultModel;
 use SurfingCrab\AgnoPay\Service as AgnoPayService;
-use SurfingCrab\AgnoPay\Exceptions\Excption as MyException;
+use SurfingCrab\AgnoPay\Reference\PdoSqliteDataLayer;
 
-$service = new AgnoPayService(new PdoSqliteDataLayer($pdoDatabaseConnectionHandle));
+// Create the main service instance.
+$service = new AgnoPayService(new PdoSqliteDataLayer(new \PDO("mysql:host=example;dbname=example", 'user', 'password')));
 
-// First, enable the payment service providers that you need. From the supported ones, a subset can also be activated.
+/*
+First, enable the payment service providers that you need.
+From the supported ones, a subset can also be activated.
+*/
 $service->activateAllVendorProfiles();
 
-// Specify amount and currency for the new payment collection request.
+// Create a new payment collection request by specifying amount and currency.
 $subject = $service->create(1.99, 'MVR');
+```
+
+#### Collect a payment
+
+```PHP
+use SurfingCrab\AgnoPay\Service as AgnoPayService;
+use SurfingCrab\AgnoPay\Reference\PdoSqliteDataLayer;
+use SurfingCrab\AgnoPay\DataModels\ResultModel;
+use SurfingCrab\AgnoPay\Exceptions\Excption as MyException;
+
+// Create the main service instance.
+$service = new AgnoPayService(new PdoSqliteDataLayer(new \PDO("mysql:host=example;dbname=example", 'user', 'password')));
+
+$alias = __getAliasFromUserInput();
+
+// Retrieve the payment collection request object.
+$subject = $service->get($alias);
 
 do {
     try {
