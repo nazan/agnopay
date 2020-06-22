@@ -21,9 +21,9 @@ Once the service instance is created store it away in a place where it can be re
 
 ## How to use
 
-The basic idea is that, payment collection process is always a list of steps that must be carried out sequentially. Whenever the 'proceed(...)' method of main service instance is called, it will try to carry out the next action in the flow or prompt the caller for more input. So, one of two things happen, it asks for more input or proceed to next step. Therefore the user of this library must continously call the 'proceed(...)' method until a 'ResultModel` instance of type 'ResultModel::TYPE_COMPLETE' is returned.
+The basic idea is that, payment collection process is always a list of steps that must be carried out sequentially. Whenever the 'proceed(...)' method of main service instance is called, it will try to carry out the next action in the flow or prompt the caller for more input. So, one of two things happen, it asks for more input or proceed to next step. Therefore the user of this library must continuously call the 'proceed(...)' method until a 'ResultModel` instance of type 'ResultModel::TYPE_COMPLETE' is returned.
 
-Note that for user input, the service class accepts a Psr7 based HTTP request instance. Admittedly, it is bit awkward to build an HTTP request instance every time input needs to be fed. This design decision was made because, more often than not this library is expected to be used underneath some sort of HTTP layer. Meaning, users of this library will not have to build the HTTP request instance manually, instead their framework of choice will do it automatically for them. After all, online payments are collected over the web, therefore the former is a fair assumption.
+Note that for user input, the service class accepts a Psr7 based HTTP request instance. Admittedly, it is a bit awkward to build an HTTP request instance every time input needs to be fed. This design decision was made because, more often than not this library is expected to be used underneath some sort of HTTP layer. Meaning, users of this library will not have to build the HTTP request instance manually, instead their framework of choice will do it automatically for them. After all, online payments are collected over the web, therefore the former is a fair assumption.
 
 Basic flow of collecting a payment is as follows.
 
@@ -38,6 +38,6 @@ To gain more understanding, refer to the following test cases in class 'ServiceT
 
 ## Get involved
 
-Docker development environment for this project is provided in following Github repository.
+Docker development environment for this project is provided in the following Github repository.
 
 [Docker dev environment](https://github.com/nazan/agnopay-dev.git)
