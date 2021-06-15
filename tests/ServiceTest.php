@@ -3,7 +3,7 @@
 use SurfingCrab\AgnoPay\Service as AgnoPayService;
 use SurfingCrab\AgnoPay\Reference\PdoSqliteDataLayer;
 
-use GuzzleHttp\Psr7\Request as PsrRequest;
+use Symfony\Component\HttpFoundation\Request as PsrRequest;
 
 use SurfingCrab\AgnoPay\DataModels\RequestModel;
 use SurfingCrab\AgnoPay\DataModels\StateModel;
@@ -164,12 +164,8 @@ class ServiceTest extends MyTestCase {
 
 		$this->assertContains('bmlconnect1', array_keys($field['validation']));
 
-		$request = new PsrRequest(
-			'POST',
-			'/',
-			['Content-Type' => 'application/x-www-form-urlencoded'],
-			http_build_query(['vendor_profile' => 'bmlconnect1'], '', '&'),
-			'1.1'
+		$request = PsrRequest::create('/', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/x-www-form-urlencoded'],
+			http_build_query(['vendor_profile' => 'bmlconnect1'], '', '&')
 		);
 
 		$result = $this->subject->proceed($queried->getAlias(), $request);
@@ -179,12 +175,9 @@ class ServiceTest extends MyTestCase {
 		$this->assertArrayHasKey('callback_uri', $result->getInputModel()->getFields());
 
 		$callbackUri = 'https://acme.acme/callback';
-		$request = new PsrRequest(
-			'POST',
-			'/',
-			['Content-Type' => 'application/x-www-form-urlencoded'],
-			http_build_query(['callback_uri' => $callbackUri], '', '&'),
-			'1.1'
+
+		$request = PsrRequest::create('/', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/x-www-form-urlencoded'],
+			http_build_query(['callback_uri' => $callbackUri], '', '&')
 		);
 
 		$result = $this->subject->proceed($queried->getAlias(), $request);
@@ -201,12 +194,8 @@ class ServiceTest extends MyTestCase {
 		
 		$this->assertInstanceOf(RequestModel::class, $last);
 
-		$request = new PsrRequest(
-			'POST',
-			'/',
-			['Content-Type' => 'application/x-www-form-urlencoded'],
-			http_build_query(['empty' => 'empty'], '', '&'),
-			'1.1'
+		$request = PsrRequest::create('/', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/x-www-form-urlencoded'],
+			http_build_query(['empty' => 'empty'], '', '&')
 		);
 
 		$result = $this->subject->proceed($last->getAlias(), $request);
@@ -242,12 +231,8 @@ class ServiceTest extends MyTestCase {
 
 		$this->assertContains('ooredoomobilemoney1', array_keys($field['validation']));
 
-		$request = new PsrRequest(
-			'POST',
-			'/',
-			['Content-Type' => 'application/x-www-form-urlencoded'],
-			http_build_query(['vendor_profile' => 'ooredoomobilemoney1'], '', '&'),
-			'1.1'
+		$request = PsrRequest::create('/', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/x-www-form-urlencoded'],
+			http_build_query(['vendor_profile' => 'ooredoomobilemoney1'], '', '&')
 		);
 
 		$result = $this->subject->proceed($queried->getAlias(), $request);
@@ -257,12 +242,9 @@ class ServiceTest extends MyTestCase {
 		$this->assertArrayHasKey('callback_uri', $result->getInputModel()->getFields());
 
 		$callbackUri = 'https://acme.acme/callback';
-		$request = new PsrRequest(
-			'POST',
-			'/',
-			['Content-Type' => 'application/x-www-form-urlencoded'],
-			http_build_query(['callback_uri' => $callbackUri], '', '&'),
-			'1.1'
+
+		$request = PsrRequest::create('/', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/x-www-form-urlencoded'],
+			http_build_query(['callback_uri' => $callbackUri], '', '&')
 		);
 
 		$result = $this->subject->proceed($queried->getAlias(), $request);
@@ -271,7 +253,7 @@ class ServiceTest extends MyTestCase {
 		$this->assertEquals(ResultModel::TYPE_INPUT_COLLECTOR_REDIRECT, $result->getType());
 		$this->assertNotEmpty($result->getInputModel()->getRedirectUri());
 
-		$this->toConsole('Got to URL: ' . $result->getInputModel()->getRedirectUri());
+		//$this->toConsole('Got to URL: ' . $result->getInputModel()->getRedirectUri());
 
 		$last = $this->subject->get([], ['id' => 'DESC']);
 		
@@ -284,8 +266,7 @@ class ServiceTest extends MyTestCase {
 		$txnId = '1';
 		$txnStatus = '1001';
 
-		$request = new PsrRequest(
-			'GET',
+		$request = PsrRequest::create(
 			'http://localhost/callback-interceptor?' . http_build_query([
 				'status' => $txnStatus,
 				'hash' => $impl->makeHash([
@@ -296,7 +277,8 @@ class ServiceTest extends MyTestCase {
 				'transactionID' => $txnId,
 				'MerchantTxnID' => $last->getAlias(),
 				'MFaisaTxnID' => '1',
-			], '', '&')
+			], '', '&'),
+			'GET'
 		);
 
 		$result = $this->subject->proceed($last->getAlias(), $request);

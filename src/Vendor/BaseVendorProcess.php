@@ -2,7 +2,7 @@
 
 namespace SurfingCrab\AgnoPay\Vendor;
 
-use GuzzleHttp\Psr7\Request as PsrRequest;
+use Symfony\Component\HttpFoundation\Request as PsrRequest;
 
 use SurfingCrab\AgnoPay\Exceptions\MisconfigurationException;
 use SurfingCrab\AgnoPay\Exceptions\InvalidInputException;

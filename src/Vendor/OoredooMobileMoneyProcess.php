@@ -2,7 +2,7 @@
 
 namespace SurfingCrab\AgnoPay\Vendor;
 
-use GuzzleHttp\Psr7\Request as PsrRequest;
+use Symfony\Component\HttpFoundation\Request as PsrRequest;
 
 use SurfingCrab\AgnoPay\Exceptions\InvalidInputException;
 use SurfingCrab\AgnoPay\Exceptions\InvalidMethodCallException;
@@ -220,7 +220,7 @@ class OoredooMobileMoneyProcess extends BaseVendorProcess
 		return $hash === $includedSig;
 	}
 
-	public function extractPaymentCollectionRequestIdentifier($input = null, $isWebhook = false) {
+	public function extractPaymentCollectionRequestIdentifier($input = null, $isWebhook = false): array {
 		if($isWebhook) {
 			throw new InvalidInputException("Chosen payment processor does not support webhook calls.");
 		}

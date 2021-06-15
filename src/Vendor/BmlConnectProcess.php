@@ -2,7 +2,7 @@
 
 namespace SurfingCrab\AgnoPay\Vendor;
 
-use GuzzleHttp\Psr7\Request as PsrRequest;
+use Symfony\Component\HttpFoundation\Request as PsrRequest;
 
 use BMLConnect\Client;
 
@@ -129,7 +129,7 @@ class BmlConnectProcess extends BaseVendorProcess
 		return true;
 	}
 
-    public function extractPaymentCollectionRequestIdentifier($input = null, $isWebhook = false) { // $isWebhook is not used since the method is the same for both 301 redirect callback and webhook call.
+    public function extractPaymentCollectionRequestIdentifier($input = null, $isWebhook = false): array { // $isWebhook is not used since the method is the same for both 301 redirect callback and webhook call.
         if(!isset($input['transactionId']) || empty($input['transactionId'])) {
             throw new InvalidInputException("Invalid transaction ID in BML Connect callback payload.");
         }

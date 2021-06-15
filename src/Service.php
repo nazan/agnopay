@@ -2,7 +2,7 @@
 
 namespace SurfingCrab\AgnoPay;
 
-use GuzzleHttp\Psr7\Request as PsrRequest;
+use Symfony\Component\HttpFoundation\Request as PsrRequest;
 
 use SurfingCrab\AgnoPay\Exceptions\Exception as AgnoPayException;
 use SurfingCrab\AgnoPay\Exceptions\DataLayerIncorrectImplementationException;
@@ -286,23 +286,25 @@ class Service {
         $method = strtolower($input->getMethod());
 
         if($method === 'post') {
-            $contentType = $input->getHeader('Content-Type');
+            $contentType = $input->headers->get('Content-Type');
 
             if(is_array($contentType)) {
                 // Convert all string elements to lower case.
                 $contentType = array_map(function($item) {
                     return is_string($item) ? strtolower($item) : $item;
                 }, $contentType);
+            } else {
+                $contentType = [is_string($contentType) ? strtolower($contentType) : $contentType];
             }
-    
+
             if(in_array('application/x-www-form-urlencoded', $contentType)) {
-                parse_str($input->getBody()->getContents(), $output);
+                parse_str($input->getContent(), $output);
                 return $output;
             } elseif(in_array('application/json', $contentType)) {
-                return json_decode($input->getBody()->getContents(), true);
+                return json_decode($input->getContent(), true);
             }
         } elseif($method === 'get') {
-            parse_str($input->getUri()->getQuery(), $output);
+            parse_str($input->getQueryString(), $output);
             return $output;
         }
         
