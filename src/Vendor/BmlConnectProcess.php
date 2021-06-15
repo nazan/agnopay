@@ -8,6 +8,8 @@ use BMLConnect\Client;
 
 use SurfingCrab\AgnoPay\Exceptions\InvalidInputException;
 use SurfingCrab\AgnoPay\Exceptions\InvalidMethodCallException;
+use SurfingCrab\AgnoPay\Exceptions\ExternalSystemErrorException;
+use SurfingCrab\AgnoPay\Exceptions\DeliberateException;
 
 use SurfingCrab\AgnoPay\DataModels\RequestModel;
 use SurfingCrab\AgnoPay\DataModels\StateModel;
@@ -111,4 +113,57 @@ class BmlConnectProcess extends BaseVendorProcess
     {
         return ['USD', 'MVR'];
     }
+
+    public function verifyWebhookCallSignature($payload)
+	{
+		return true;
+	}
+
+    public function callbackIsAuthentic($payload, $isWebhook = false) {
+		// See here if included signature is valid. Return true only if it is valid.
+
+		if($isWebhook) {
+			return $this->verifyWebhookCallSignature($payload);
+		}
+
+		return true;
+	}
+
+    public function extractPaymentCollectionRequestIdentifier($input = null, $isWebhook = false) { // $isWebhook is not used since the method is the same for both 301 redirect callback and webhook call.
+        if(!isset($input['transactionId']) || empty($input['transactionId'])) {
+            throw new InvalidInputException("Invalid transaction ID in BML Connect callback payload.");
+        }
+
+        $txnId = array_get($input, 'transactionId', null);
+
+		$transaction = $this->getTransaction($txnId, false);
+
+		return ['alias' => $transaction->localId];
+	}
+
+	public function extractIntendedTargetState(PsrRequest $request, RequestModel $pcr) {
+        $payload = $this->service->extractData($request);
+		$state = strtolower(array_get($payload, 'state', ''));
+		
+		if($state === 'cancelled') {
+			$keys = $pcr->getVendorProfiles();
+
+			if(count($keys) === 1) {
+				throw new DeliberateException("Transaction cancelled upon request from customer.");
+			}
+
+			return 'init';
+		}
+
+		// Multiple API calls to retrieve the transaction can be avoided if there is a way to validate the signature sent in the callback.
+        $txnId = array_get($payload, 'transactionId', null);
+
+		$transaction = $this->getTransaction($txnId, false);
+		
+		if($state === 'confirmed' && strtolower($transaction->state) === 'confirmed') {
+			return 'success-callback-captured';
+		}
+
+		throw new InvalidInputException("Unexpected transaction state in given transaction ID within callback payload.");
+	}
 }

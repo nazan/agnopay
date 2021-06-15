@@ -92,4 +92,9 @@ abstract class BaseVendorProcess
 	}
 
 	public abstract function supportedCurrencies(): array;
+
+	
+	public abstract function callbackIsAuthentic($payload, $isWebhook = false);
+	public abstract function extractPaymentCollectionRequestIdentifier($payload = null, $isWebhook = false): array;
+	public abstract function extractIntendedTargetState(PsrRequest $request, RequestModel $pcr);
 }

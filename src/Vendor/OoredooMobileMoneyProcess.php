@@ -74,10 +74,6 @@ class OoredooMobileMoneyProcess extends BaseVendorProcess
 
 		if(!is_null($input)) {
 			$inputData = $this->service->extractData($input);
-
-			if(!$this->callbackIsAuthentic($inputData)) {
-				throw new InvalidMethodCallException("Attack detected. Aborting payment request.");
-			}
 			
 			$originalPayload = $inputData;
 
@@ -178,22 +174,6 @@ class OoredooMobileMoneyProcess extends BaseVendorProcess
 	}
 	*/
 
-	public function callbackIsAuthentic($inputData) {
-		$inputData = lowerAssocKeys($inputData);
-		
-		// See here if included signature is valid. Return true only if it is valid.
-		$includedSig = my_array_get($inputData, 'hash', null);
-
-		if(is_null($includedSig)) {
-			return $this->isErrorPayload($inputData);
-		}
-
-		$hash = $this->makeHash($inputData);
-
-
-		return $hash === $includedSig;
-	}
-
 	public function makeHash($inputData) {
 		$config = $this->config;
 		
@@ -219,7 +199,50 @@ class OoredooMobileMoneyProcess extends BaseVendorProcess
 		return !isset($inputData['hash']);
 	}
 
-	public function extractIntendedTargetState($inputData) {
+	public function supportedCurrencies(): array
+    {
+        return ['MVR'];
+    }
+
+	public function callbackIsAuthentic($payload, $isWebhook = false) {
+		$inputData = lowerAssocKeys($payload);
+		
+		// See here if included signature is valid. Return true only if it is valid.
+		$includedSig = my_array_get($inputData, 'hash', null);
+
+		if(is_null($includedSig)) {
+			return $this->isErrorPayload($inputData);
+		}
+
+		$hash = $this->makeHash($inputData);
+
+
+		return $hash === $includedSig;
+	}
+
+	public function extractPaymentCollectionRequestIdentifier($input = null, $isWebhook = false) {
+		if($isWebhook) {
+			throw new InvalidInputException("Chosen payment processor does not support webhook calls.");
+		}
+        
+        if(!isset($inputData['transactionId']) || empty($inputData['transactionId'])) {
+            throw new InvalidInputException("Invalid transaction ID in BML Connect callback payload.");
+        }
+
+		$inputData = lowerAssocKeys($inputData);
+
+		$alias = array_get($inputData, 'merchanttxnid', null);
+
+		if(is_null($paymentNumber)) {
+			throw new InvalidInputException('Unable to extract payment request identifier.');
+		}
+
+		return ['alias' => $alias];
+	}
+
+	public function extractIntendedTargetState(PsrRequest $request, RequestModel $pcr) {
+		$inputData = $this->service->extractData($request);
+		
 		$inputData = lowerAssocKeys($inputData);
 
 		if($this->isErrorPayload($inputData)) {
@@ -232,9 +255,4 @@ class OoredooMobileMoneyProcess extends BaseVendorProcess
 
 		return StateModel::STATE_SUCCESS;
 	}
-
-	public function supportedCurrencies(): array
-    {
-        return ['MVR'];
-    }
 }

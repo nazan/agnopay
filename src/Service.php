@@ -344,6 +344,42 @@ class Service {
         throw new UnimplementedMethodException("Unable to deduce vendor implementation class for vendor key '{$vendorProfile['vendor']}'.");
     }
 
+    public function discernPaymentCollectionRequest($vendorProfileKey, PsrRequest $request, $isWebhook = false) {
+        $inputData = $this->extractData($request);
+
+        $profiles = $this->getActivatedVendorProfiles();
+
+        if(!array_key_exists($vendorProfileKey, $profiles)) {
+			throw new InvalidInputException("Vendor profile \"$vendorProfileKey\" not recognized.");
+		}
+
+        $profile = $profiles[$vendorProfileKey];
+
+		$processorImpl = $this->getVendorProcessImplementation($profile);
+		
+		if(!$processorImpl->callbackIsAuthentic($inputData, $isWebhook)) {
+			throw new InvalidInputException("Invalid callback intercepted. Callback claims to be originating from vendor profile \"$vendorProfileKey\".");
+		}
+		
+		$paymentRequestIdentifiers = $processorImpl->extractPaymentCollectionRequestIdentifier($inputData, $isWebhook);
+		
+        $pcr = $this->dl->getPaymentRequest($paymentRequestIdentifiers); // $pcr -> payment collection request.
+
+        if(empty($pcr)) {
+            throw new InvalidInputException("Record of payment collection request not found.");
+        }
+
+        $lastInitState = $this->dl->getLastInitiatedState($pcr->getAlias());
+
+        $chosenVendorProfileKey = $lastInitState->getChosenVendorProfile();
+
+        if($chosenVendorProfileKey !== $vendorProfileKey) {
+            throw new InvalidInputException("Invalid callback intercepted. Vendor switching is not allowed in this stage.");
+        }
+
+		return $pcr;
+	}
+
     public function success($requestAlias, $parameters)
 	{
         $this->dl->pushState($requestAlias, StateModel::STATE_SUCCESS, $parameters);
