@@ -10,6 +10,8 @@ use SurfingCrab\AgnoPay\Exceptions\InvalidInputException;
 use SurfingCrab\AgnoPay\Exceptions\InvalidMethodCallException;
 use SurfingCrab\AgnoPay\Exceptions\ExternalSystemErrorException;
 use SurfingCrab\AgnoPay\Exceptions\DeliberateException;
+use SurfingCrab\AgnoPay\Exceptions\MisconfigurationException;
+use SurfingCrab\AgnoPay\Exceptions\FalseAssumptionException;
 
 use SurfingCrab\AgnoPay\DataModels\RequestModel;
 use SurfingCrab\AgnoPay\DataModels\StateModel;
@@ -20,6 +22,8 @@ use SurfingCrab\AgnoPay\DataModels\ResultModel;
 class BmlConnectProcess extends BaseVendorProcess
 {
     const VENDOR_KEY = 'bmlconnect';
+
+    const FORM_KEY_PAYMENT_COLLECTION_URI = 'payment_collection_uri';
 
     protected $stateTransitions = [
         'initiated' => 'transaction-created/createTransaction',
@@ -35,52 +39,49 @@ class BmlConnectProcess extends BaseVendorProcess
 		return new Client($config['api_key'], $config['app_id'], $config['env']);
 	}
 
-	public function createTransaction(StateModel $currentStateModel, PsrRequest $input = null) {
-        if(!is_null($input)) {
-            $inputData = $this->service->extractData($input);
-            if(!isset($inputData['callback_uri']) || empty($inputData['callback_uri'])) {
-                throw new InvalidInputException("Invalid callback URI for BML Connect redirect.");
-            }
-
-            $request = $currentStateModel->getRequest();
-
-            $client = $this->getTransport();
-
-            $json = [
-                "currency" => $request->getCurrency(),
-                "amount" => $request->getAmount(),
-                "localId" => $request->getAlias(),
-                "customerReference" => $request->getAlias(),
-                "redirectUrl" => $inputData['callback_uri'], // Optional redirect after payment completion
-            ];
-
-            $transaction = $client->transactions->create($json);
-
-            $this->service->getDataAccessLayer()->pushState($request->getAlias(), 'transaction-created', [
-                'provider_txn_id' => $transaction->id,
-                'payment_collection_url' => $transaction->url,
-            ]);
-
-            return $this->proceed($request);
+	public function createTransaction(StateModel $currentStateModel, PsrRequest $input) {
+        if(!isset($this->config['callback_uri']) || empty($this->config['callback_uri'])) {
+            $vendorKey = self::VENDOR_KEY;
+            throw new MisconfigurationException("Processor '$vendorKey' requires a valid callback URI to be provided as configuration data.");
         }
 
-        return ResultModel::getInputCollectorInstance([
-            'callback_uri' => [
-                'label' => 'Callback URI',
-                'validation' => '/.*/i',
-                'default' => null,
-            ],
+        $request = $currentStateModel->getRequest();
+
+        $client = $this->getTransport();
+
+        $json = [
+            "currency" => $request->getCurrency(),
+            "amount" => $request->getAmount(),
+            "localId" => $request->getAlias(),
+            "customerReference" => $request->getAlias(),
+            "redirectUrl" => $this->config['callback_uri'], // Optional redirect after payment completion
+        ];
+
+        $transaction = $client->transactions->create($json);
+
+        $this->service->getDataAccessLayer()->pushState($request->getAlias(), 'transaction-created', [
+            'provider_txn_id' => $transaction->id,
+            'payment_collection_url' => $transaction->url,
         ]);
+
+        return ResultModel::getMutatedInstance();
     }
     
-    public function redirectToBmlConnectGateway(StateModel $currentStateModel, PsrRequest $input = null) {
-        if(!is_null($input)) {
+    public function redirectToBmlConnectGateway(StateModel $currentStateModel, PsrRequest $input) {
+        try {
+            $payload = $this->service->extractData($input);
+            $txnId = my_array_get($payload, 'transactionId', null);
+
+            if(empty($txnId)) {
+                throw new FalseAssumptionException("Payment collection not yet ready to process callback from vendor. False assumption detected.");
+            }
+
             $requestModel = $currentStateModel->getRequest();
 
             try {
                 $lastTxnCreatedState = $this->service->getDataAccessLayer()->getLastStateMatching($requestModel->getAlias(), ['state' => 'transaction-created']);
             } catch(InvalidMethodCallException $excp) {
-                throw new MissingDataException("Request of alias '{$requestModel->getAlias()}' must have a `transaction-created` state at this point.", 0, $excp);
+                throw new MissingDataException("Request of alias '{$requestModel->getAlias()}' must have a `transaction-created` state instance at this point.", 0, $excp);
             }
             
             $lastProviderTxnId = $lastTxnCreatedState->getParameters()['provider_txn_id'];
@@ -88,13 +89,14 @@ class BmlConnectProcess extends BaseVendorProcess
             $txnData = $this->getTransaction($lastProviderTxnId);
 
             if(strtolower($txnData['state']) !== 'confirmed') {
-                throw new InvalidInputException("Unexpected transaction state encountered while handling callback from BML Connect. Payment collection failed.");
+                $requestAlias = $requestModel->getAlias();
+                throw new ExternalSystemErrorException("Unexpected transaction state encountered while handling callback from BML Connect. Payment collection failed for request alias '$requestAlias'");
             }
 
             return $this->service->success($requestModel->getAlias(), $txnData);
+        } catch(FalseAssumptionException $excp) {
+            return ResultModel::getInputCollectorRedirectInstance($this->getQualifiedFormKey(self::FORM_KEY_PAYMENT_COLLECTION_URI), [], $currentStateModel->getParameters()['payment_collection_url']);
         }
-
-		return ResultModel::getInputCollectorRedirectInstance([], $currentStateModel->getParameters()['payment_collection_url']);
     }
     
     public function getTransaction($transactionId) {
@@ -106,7 +108,7 @@ class BmlConnectProcess extends BaseVendorProcess
             throw new ExternalSystemErrorException("Failed to get transaction details for ID '$transactionId' from BML Systems.", 0, $excp);
         }
 
-        return json_decode(json_encode($transaction) ,true);
+        return json_decode(json_encode($transaction), true);
     }
     
     public function supportedCurrencies(): array
@@ -134,16 +136,16 @@ class BmlConnectProcess extends BaseVendorProcess
             throw new InvalidInputException("Invalid transaction ID in BML Connect callback payload.");
         }
 
-        $txnId = array_get($input, 'transactionId', null);
+        $txnId = my_array_get($input, 'transactionId', null);
 
-		$transaction = $this->getTransaction($txnId, false);
+		$transaction = $this->getTransaction($txnId);
 
-		return ['alias' => $transaction->localId];
+		return ['alias' => $transaction['localId']];
 	}
 
 	public function extractIntendedTargetState(PsrRequest $request, RequestModel $pcr) {
         $payload = $this->service->extractData($request);
-		$state = strtolower(array_get($payload, 'state', ''));
+		$state = strtolower(my_array_get($payload, 'state', ''));
 		
 		if($state === 'cancelled') {
 			$keys = $pcr->getVendorProfiles();
@@ -152,18 +154,20 @@ class BmlConnectProcess extends BaseVendorProcess
 				throw new DeliberateException("Transaction cancelled upon request from customer.");
 			}
 
-			return 'init';
+			return StateModel::STATE_CLEARED;
 		}
 
 		// Multiple API calls to retrieve the transaction can be avoided if there is a way to validate the signature sent in the callback.
-        $txnId = array_get($payload, 'transactionId', null);
+        $txnId = my_array_get($payload, 'transactionId', null);
 
-		$transaction = $this->getTransaction($txnId, false);
-		
-		if($state === 'confirmed' && strtolower($transaction->state) === 'confirmed') {
-			return 'success-callback-captured';
-		}
+        if(!empty($txnId)) {
+            $transaction = $this->getTransaction($txnId);
+            
+            if($state === 'confirmed' && strtolower($transaction['state']) === 'confirmed') {
+                return StateModel::STATE_SUCCESS;
+            }
+        }
 
-		throw new InvalidInputException("Unexpected transaction state in given transaction ID within callback payload.");
+		return null;
 	}
 }

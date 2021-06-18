@@ -23,6 +23,9 @@ class OoredooMobileMoneyProcess extends BaseVendorProcess
 
 	const SUCCESS_CODE = '1001';
 
+	const FORM_KEY_CALLBACK_URI_SPEC = 'callback_uri_spec';
+	const FORM_KEY_MERCHANT_SPEC = 'merchant_spec';
+
 	protected $stateTransitions = [
 		'initiated' => ['callback-collected/collectCallbackUri', StateModel::STATE_CLEARED . '/restart'],
 		'callback-collected' => [StateModel::STATE_SUCCESS . '/redirectToOoredooSystem', StateModel::STATE_CLEARED . '/restart']
@@ -58,7 +61,7 @@ class OoredooMobileMoneyProcess extends BaseVendorProcess
             return $this->proceed($request);
 		}
 
-		return ResultModel::getInputCollectorInstance([
+		return ResultModel::getInputCollectorInstance($this->getQualifiedFormKey(self::FORM_KEY_CALLBACK_URI_SPEC), [
             'callback_uri' => [
                 'label' => 'Callback URI',
                 'validation' => '/.*/i',
@@ -122,7 +125,7 @@ class OoredooMobileMoneyProcess extends BaseVendorProcess
         $plainText = "{$config['merchant_id']}{$config['merchant_pin']}{$config['merchant_key']}{$requestModel->getAlias()}{$amount}";
 		$signature = hash("sha1", $plainText);
 
-		return ResultModel::getInputCollectorRedirectInstance([
+		return ResultModel::getInputCollectorRedirectInstance($this->getQualifiedFormKey(self::FORM_KEY_MERCHANT_SPEC), [
 			'MerID' => [
                 'label' => 'Merchant ID',
                 'validation' => '/.*/i',
@@ -231,7 +234,7 @@ class OoredooMobileMoneyProcess extends BaseVendorProcess
 
 		$inputData = lowerAssocKeys($inputData);
 
-		$alias = array_get($inputData, 'merchanttxnid', null);
+		$alias = my_array_get($inputData, 'merchanttxnid', null);
 
 		if(is_null($paymentNumber)) {
 			throw new InvalidInputException('Unable to extract payment request identifier.');
@@ -250,9 +253,9 @@ class OoredooMobileMoneyProcess extends BaseVendorProcess
 				return StateModel::STATE_CLEARED;
 			}
 
-			throw new InvalidInputException("{$inputData['message']} / status code '{$inputData['status']}'");
+			//throw new InvalidInputException("{$inputData['message']} / status code '{$inputData['status']}'");
 		}
 
-		return StateModel::STATE_SUCCESS;
+		return null;
 	}
 }

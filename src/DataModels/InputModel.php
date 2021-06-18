@@ -5,10 +5,22 @@ namespace SurfingCrab\AgnoPay\DataModels;
 use SurfingCrab\AgnoPay\Exceptions\InvalidInputException;
 
 class InputModel {
+    protected $formKey;
     protected $fields;
 
-    public function __construct($fields) {
+    public function __construct($formKey, $fields) {
+        $this->setFormKey($formKey);
         $this->setFields($fields);
+    }
+
+    public function getFormKey()
+    {
+        return $this->formKey;
+    }
+
+    public function setFormKey($formKey)
+    {
+        $this->formKey = $formKey;
     }
 
     public function getFields()

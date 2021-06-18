@@ -11,6 +11,7 @@ class ResultModel {
     const TYPE_INPUT_COLLECTOR_REDIRECT = 'input_collector_redirect';
     const TYPE_COMPLETE = 'complete';
     const TYPE_FAILED = 'failed';
+    const TYPE_MUTATED = 'mutated';
     const TYPE_FEEDBACK = 'feedback';
 
     protected $type;
@@ -49,6 +50,12 @@ class ResultModel {
         $this->input = null;
     }
 
+    public function setAsMutated()
+    {
+        $this->type = self::TYPE_MUTATED;
+        $this->input = null;
+    }
+
     public function setAsFeedback(string $message)
     {
         $this->type = self::TYPE_FEEDBACK;
@@ -56,21 +63,21 @@ class ResultModel {
         $this->message = $message;
     }
 
-    public static function getInputCollectorInstance($fields)
+    public static function getInputCollectorInstance($formKey, $fields)
     {
         $inst = new self();
         $inst->setAsInputCollector(
-            new InputModel($fields)
+            new InputModel($formKey, $fields)
         );
 
         return $inst;
     }
 
-    public static function getInputCollectorRedirectInstance($fields, $redirectUri)
+    public static function getInputCollectorRedirectInstance($formKey, $fields, $redirectUri)
     {
         $inst = new self();
         $inst->setAsInputCollectorRedirect(
-            new RedirectInputModel($fields, $redirectUri)
+            new RedirectInputModel($formKey, $fields, $redirectUri)
         );
 
         return $inst;
@@ -88,6 +95,14 @@ class ResultModel {
     {
         $inst = new self();
         $inst->setAsFailed();
+
+        return $inst;
+    }
+
+    public static function getMutatedInstance()
+    {
+        $inst = new self();
+        $inst->setAsMutated();
 
         return $inst;
     }
@@ -112,7 +127,7 @@ class ResultModel {
             }
         }
 
-        throw new InvalidMethodCallException("Reguest of given state object is not concluded. Unable to generate conclusion Result instance.");
+        throw new InvalidMethodCallException("Request of given state object is not concluded. Unable to generate conclusion Result instance.");
     }
 
     public function getType()

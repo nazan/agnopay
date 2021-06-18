@@ -5,7 +5,7 @@ namespace SurfingCrab\AgnoPay\DataModels;
 interface DataLayerInterface {
     public function getVendorProfiles(): array;
 
-    public function createPaymentRequest($vendorListString, $expiresIn, $amount, $currency): RequestModel;
+    public function createPaymentRequest($vendorListString, $expiresIn, $amount, $currency, callable $postActions): RequestModel;
 
     public function getPaymentRequest($criteria, $sort = []): RequestModel;
     

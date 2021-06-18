@@ -30,7 +30,7 @@ abstract class BaseVendorProcess
         $this->label = $label;
     }
 
-    public function proceed(RequestModel $request, PsrRequest $input = null)
+    public function proceed(RequestModel $request, PsrRequest $input)
     {
 		$currency = $request->getCurrency();
 
@@ -45,8 +45,9 @@ abstract class BaseVendorProcess
 		}
 
 		$currentState = $currentStateModel->getState();
-
-		$routine = $this->getNextAction($currentState);
+		$targetState = $this->extractIntendedTargetState($input, $request);
+		
+		$routine = $this->getNextAction($currentState, $targetState);
 
         return $this->callRoutine($routine, $currentStateModel, $input);
 	}
@@ -83,6 +84,10 @@ abstract class BaseVendorProcess
 		}
 		
 		return $this->$routine($currentStateModel, $input);
+	}
+
+	public function getQualifiedFormKey($formKey) {
+		return static::VENDOR_KEY . '.' . $formKey;
 	}
 
 	public function getMock($key)

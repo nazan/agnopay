@@ -12,6 +12,7 @@ use SurfingCrab\AgnoPay\Exceptions\UnexpectedRequestModelStateException;
 use SurfingCrab\AgnoPay\Exceptions\InvalidInputException;
 use SurfingCrab\AgnoPay\Exceptions\InvalidMethodCallException;
 use SurfingCrab\AgnoPay\Exceptions\UnimplementedMethodException;
+use SurfingCrab\AgnoPay\Exceptions\FalseAssumptionException;
 
 use SurfingCrab\AgnoPay\DataModels\DataLayerInterface;
 
@@ -31,6 +32,8 @@ class Service {
         self::VENDOR_OOREDOO_MM,
         self::VENDOR_DHIRAAGU_PAY,
     ];
+
+    const FORM_KEY_VENDOR_CHOICES = 'vendor_choices';
 
     public static $conversionTable = [
         'USD' => 100,
@@ -172,7 +175,7 @@ class Service {
         $this->setVendorProfileState(array_keys($this->getVendorProfiles()), false, false);
     }
 
-    public function create($amount, $currency): RequestModel {
+    public function create($amount, $currency, callable $postActions): RequestModel {
         $vendorProfiles = $this->getActivatedVendorProfiles($currency);
 
         if(empty($vendorProfiles)) {
@@ -190,7 +193,7 @@ class Service {
         }
 
         try {
-            $inst = $this->dl->createPaymentRequest(implode(',', array_keys($vendorProfiles)), $this->expiresIn, $amount, $currency);
+            $inst = $this->dl->createPaymentRequest(implode(',', array_keys($vendorProfiles)), $this->expiresIn, $amount, $currency, $postActions);
 
             $asArray = $inst->toArray();
 
@@ -205,57 +208,45 @@ class Service {
         return $this->dl->getPaymentRequest($criteria, $sort);
     }
 
-    public function proceed($alias, PsrRequest $input = null): ResultModel
+    public function proceed($alias, PsrRequest $input): ResultModel
     {
         $request = $this->get($alias);
 
         try {
-            $currentState = $this->dl->getCurrentState($request->getAlias());
-            return ResultModel::getConclusionResultInstance($currentState);
-        } catch(InvalidMethodCallException $excp) {
-            // This is expected. Returning to normal flow.
+            return $this->assumeRequestAlreadyConcluded($request);
+        } catch(FalseAssumptionException $excp) {
+            try {
+                return $this->assumeRequestAlreadyInitiated($request, $input);
+            } catch(FalseAssumptionException $excp) {
+                try {
+                    return $this->assumeRequestInitiationInputIncluded($request, $input);
+                } catch(FalseAssumptionException $excp) {
+                    return $this->getInitiationInputFormDescription($request);
+                }
+            }
         }
+    }
 
-        $now = new \DateTime();
-        
+    private function assumeRequestAlreadyConcluded(RequestModel $request) {
+        try {
+            $currentState = $this->dl->getCurrentState($request->getAlias());
+
+            return ResultModel::getConclusionResultInstance($currentState);
+        } catch(InvalidMethodCallException | InvalidInputException $excp) {
+            throw new FalseAssumptionException("Request completion assumed prematurely. Further processing is required.", 0, $excp);
+        }
+    }
+
+    private function assumeRequestAlreadyInitiated(RequestModel $request, PsrRequest $input) {
         try {
             $lastInitiatedState = $this->dl->getLastInitiatedState($request->getAlias());
-        } catch(InvalidMethodCallException $excp) {            
-            if(!is_null($input)) {
-                $inputData = $this->extractData($input);
-                
-                if(!isset($inputData['vendor_profile']) || empty($inputData['vendor_profile']) || !in_array($inputData['vendor_profile'], $request->getVendorProfiles())) {
-                    throw new InvalidInputException("Vendor profile choice is invalid.");
-                }
-
-                $this->dl->pushState($request->getAlias(), StateModel::STATE_INIT, [
-                    'initiated_at' => $now->format('Y-m-d H:i:s'),
-                    'vendor_profile' => $inputData['vendor_profile'],
-                ]);
-                    
-                return $this->proceed($request->getAlias());
-            }
-            
-            $allVendorProfiles = $this->getVendorProfiles();
-
-            $profileValidation = [];
-            foreach($request->getVendorProfiles() as $profileKey) {
-                if(isset($allVendorProfiles[$profileKey]['label'])) {
-                    $profileValidation[$profileKey] = $allVendorProfiles[$profileKey]['label'];
-                }
-            }
-
-            return ResultModel::getInputCollectorInstance([
-                'vendor_profile' => [
-                    'label' => 'Processor',
-                    'validation' => $profileValidation,
-                    'default' => null,
-                ],
-            ]);
+        } catch(InvalidMethodCallException $excp) {
+            throw new FalseAssumptionException("Request 'in processing' assumed prematurely. Initiation task is required.", 0, $excp);
         }
-
+        
         $initiatedTime = $lastInitiatedState->getInitiatedTime();
-
+        
+        $now = new \DateTime();
         if($now->getTimestamp() >= $initiatedTime->getTimestamp() + $request->getExpiresIn()) {
             return $this->failed($request->getAlias(), [
                 'code' => 0,
@@ -269,16 +260,51 @@ class Service {
 
         $vendorProfile = $vendorProfiles[$vendorProfileKey];
         
-        $vendorProcess = $this->getVendorProcessImplementation($vendorProfile);
+        $vendorProcessImpl = $this->getVendorProcessImplementation($vendorProfile);
 
         try {
-            return $vendorProcess->proceed($request, $input);
+            return $vendorProcessImpl->proceed($request, $input);
         } catch(AgnoPayException $excp) {
             return $this->failed($request->getAlias(), [
                 'code' => 0,
                 'message' => $excp->getMessage(),
             ]);
         }
+    }
+
+    private function assumeRequestInitiationInputIncluded(RequestModel $request, PsrRequest $input) {
+        $payload = $this->extractData($input);
+                    
+        if(!isset($payload['vendor_profile']) || empty($payload['vendor_profile']) || !in_array($payload['vendor_profile'], $request->getVendorProfiles())) {
+            throw new FalseAssumptionException("Vendor profile choice is invalid or missing.");
+        }
+
+        $now = new \DateTime();
+        $this->dl->pushState($request->getAlias(), StateModel::STATE_INIT, [
+            'initiated_at' => $now->format('Y-m-d H:i:s'),
+            'vendor_profile' => $payload['vendor_profile'],
+        ]);
+            
+        return ResultModel::getMutatedInstance();
+    }
+
+    private function getInitiationInputFormDescription(RequestModel $request) {
+        $allVendorProfiles = $this->getVendorProfiles();
+
+        $profileValidation = [];
+        foreach($request->getVendorProfiles() as $profileKey) {
+            if(isset($allVendorProfiles[$profileKey]['label'])) {
+                $profileValidation[$profileKey] = $allVendorProfiles[$profileKey]['label'];
+            }
+        }
+
+        return ResultModel::getInputCollectorInstance(self::FORM_KEY_VENDOR_CHOICES, [
+            'vendor_profile' => [
+                'label' => 'Processor',
+                'validation' => $profileValidation,
+                'default' => null,
+            ],
+        ]);
     }
 
     public function extractData(PsrRequest $input)
@@ -309,6 +335,16 @@ class Service {
         }
         
         throw new InvalidInputException("Not a valid input. Pass in a PSR7 Request object of content type either 'application/x-www-form-urlencoded' or 'application/json'");
+    }
+
+    public function getVendorProcessImplementationForRequest(RequestModel $pcr) {
+        $lastInitiatedState = $this->dl->getLastInitiatedState($pcr->getAlias());
+
+        $profileKey = $lastInitiatedState->getChosenVendorProfile();
+
+        $profiles = $this->getActivatedVendorProfiles($pcr->getCurrency());
+
+        return $this->getVendorProcessImplementation($profiles[$profileKey]);
     }
 
     public function getVendorProcessImplementation($vendorProfile)
@@ -362,7 +398,7 @@ class Service {
 		if(!$processorImpl->callbackIsAuthentic($inputData, $isWebhook)) {
 			throw new InvalidInputException("Invalid callback intercepted. Callback claims to be originating from vendor profile \"$vendorProfileKey\".");
 		}
-		
+        
 		$paymentRequestIdentifiers = $processorImpl->extractPaymentCollectionRequestIdentifier($inputData, $isWebhook);
 		
         $pcr = $this->dl->getPaymentRequest($paymentRequestIdentifiers); // $pcr -> payment collection request.
@@ -385,13 +421,13 @@ class Service {
     public function success($requestAlias, $parameters)
 	{
         $this->dl->pushState($requestAlias, StateModel::STATE_SUCCESS, $parameters);
-        return $this->proceed($requestAlias);
+        return ResultModel::getMutatedInstance();
     }
     
     public function failed($requestAlias, $parameters)
 	{
         $this->dl->pushState($requestAlias, StateModel::STATE_FAILED, $parameters);
-        return $this->proceed($requestAlias);
+        return ResultModel::getMutatedInstance();
     }
 
     public function setMock($key, $value)
