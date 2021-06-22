@@ -95,8 +95,16 @@ class BmlConnectProcess extends BaseVendorProcess
 
             return $this->service->success($requestModel->getAlias(), $txnData);
         } catch(FalseAssumptionException $excp) {
-            return ResultModel::getInputCollectorRedirectInstance($this->getQualifiedFormKey(self::FORM_KEY_PAYMENT_COLLECTION_URI), [], $currentStateModel->getParameters()['payment_collection_url']);
+            return ResultModel::getInputCollectorRedirectInstance($this->getQualifiedFormKey(self::FORM_KEY_PAYMENT_COLLECTION_URI), [], [], $currentStateModel->getParameters()['payment_collection_url']);
         }
+    }
+
+    public function restart(StateModel $currentStateModel, PsrRequest $input) {
+        $request = $currentStateModel->getRequest();
+
+        $this->service->getDataAccessLayer()->pushState($request->getAlias(), StateModel::STATE_CLEARED, []);
+
+        return ResultModel::getMutatedInstance();
     }
     
     public function getTransaction($transactionId) {
@@ -144,16 +152,16 @@ class BmlConnectProcess extends BaseVendorProcess
 	}
 
 	public function extractIntendedTargetState(PsrRequest $request, RequestModel $pcr) {
+        $targetState = parent::extractIntendedTargetState($request, $pcr);
+
+		if(!is_null($targetState)) {
+			return $targetState;
+		}
+        
         $payload = $this->service->extractData($request);
 		$state = strtolower(my_array_get($payload, 'state', ''));
 		
 		if($state === 'cancelled') {
-			$keys = $pcr->getVendorProfiles();
-
-			if(count($keys) === 1) {
-				throw new DeliberateException("Transaction cancelled upon request from customer.");
-			}
-
 			return StateModel::STATE_CLEARED;
 		}
 

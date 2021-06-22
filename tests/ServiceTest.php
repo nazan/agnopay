@@ -153,6 +153,7 @@ class ServiceTest extends MyTestCase {
 		
 		$inputModel = $result->getInputModel();
 		$fields = $inputModel->getFields();
+		$options = $inputModel->getOptions();
 
 		$this->assertArrayHasKey('vendor_profile', $fields);
 		
@@ -220,6 +221,7 @@ class ServiceTest extends MyTestCase {
 		
 		$inputModel = $result->getInputModel();
 		$fields = $inputModel->getFields();
+		$options = $inputModel->getOptions();
 
 		$this->assertArrayHasKey('vendor_profile', $fields);
 		

@@ -20,6 +20,9 @@ use SurfingCrab\AgnoPay\DataModels\RequestModel;
 use SurfingCrab\AgnoPay\DataModels\StateModel;
 use SurfingCrab\AgnoPay\DataModels\ResultModel;
 
+use SurfingCrab\AgnoPay\DataModels\CacherInterface;
+use SurfingCrab\AgnoPay\DataModels\PhpSessionCacher;
+
 use SurfingCrab\AgnoPay\Vendor\BaseVendorProcess;
 
 class Service {
@@ -52,7 +55,9 @@ class Service {
 
     protected $autoAmountConversion;
 
-    public function __construct(DataLayerInterface $dl)
+    protected $cacher;
+
+    public function __construct(DataLayerInterface $dl, CacherInterface $cacher = null)
     {
         $this->dl = $dl;
         
@@ -61,6 +66,12 @@ class Service {
         $this->autoAmountConversion = true;
 
         $this->expiresIn = self::DEFAULT_EXPIRES_IN;
+
+        if(is_null($cacher)) {
+            $this->cacher = new PhpSessionCacher();
+        } else {
+            $this->cacher = $cacher;
+        }
 
         $this->setVendorProfileDefaultState();
     }
@@ -264,6 +275,8 @@ class Service {
 
         try {
             return $vendorProcessImpl->proceed($request, $input);
+        } catch(RecoverableException $excp) {
+            return ResultModel::getFeedbackInstance($excp->getMessage(), $excp->getOptions());
         } catch(AgnoPayException $excp) {
             return $this->failed($request->getAlias(), [
                 'code' => 0,
@@ -274,8 +287,10 @@ class Service {
 
     private function assumeRequestInitiationInputIncluded(RequestModel $request, PsrRequest $input) {
         $payload = $this->extractData($input);
+
+        $failed = $this->dl->getFailedVendorProfiles($request->getAlias());        
                     
-        if(!isset($payload['vendor_profile']) || empty($payload['vendor_profile']) || !in_array($payload['vendor_profile'], $request->getVendorProfiles())) {
+        if(!isset($payload['vendor_profile']) || empty($payload['vendor_profile']) || !in_array($payload['vendor_profile'], $request->getVendorProfiles()) || in_array($payload['vendor_profile'], $failed)) {
             throw new FalseAssumptionException("Vendor profile choice is invalid or missing.");
         }
 
@@ -290,10 +305,11 @@ class Service {
 
     private function getInitiationInputFormDescription(RequestModel $request) {
         $allVendorProfiles = $this->getVendorProfiles();
+        $failed = $this->dl->getFailedVendorProfiles($request->getAlias());        
 
         $profileValidation = [];
         foreach($request->getVendorProfiles() as $profileKey) {
-            if(isset($allVendorProfiles[$profileKey]['label'])) {
+            if(isset($allVendorProfiles[$profileKey]['label']) && !in_array($profileKey, $failed)) {
                 $profileValidation[$profileKey] = $allVendorProfiles[$profileKey]['label'];
             }
         }
@@ -304,7 +320,7 @@ class Service {
                 'validation' => $profileValidation,
                 'default' => null,
             ],
-        ]);
+        ], []);
     }
 
     public function extractData(PsrRequest $input)
@@ -443,5 +459,9 @@ class Service {
     public function getMock($key)
     {
         return isset($this->mocks[$key]) ? $this->mocks[$key] : null;
+    }
+
+    public function getCacher() {
+        return $this->cacher;
     }
 }

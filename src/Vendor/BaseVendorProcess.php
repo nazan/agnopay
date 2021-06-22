@@ -23,6 +23,8 @@ abstract class BaseVendorProcess
 
     protected $stateTransitions;
 
+	const INTENDED_TARGET_QUERY_PARAM_KEY = '__agno_target';
+
     public function __construct(AgnoPayService $service, $config, $label)
     {
         $this->service = $service;
@@ -101,5 +103,14 @@ abstract class BaseVendorProcess
 	
 	public abstract function callbackIsAuthentic($payload, $isWebhook = false);
 	public abstract function extractPaymentCollectionRequestIdentifier($payload = null, $isWebhook = false): array;
-	public abstract function extractIntendedTargetState(PsrRequest $request, RequestModel $pcr);
+	
+	public function extractIntendedTargetState(PsrRequest $request, RequestModel $pcr) {
+		$method = strtolower($request->getMethod());
+
+		if($method === 'get' && $request->query->has(self::INTENDED_TARGET_QUERY_PARAM_KEY)) {
+			return $request->query->get(self::INTENDED_TARGET_QUERY_PARAM_KEY);
+		}
+
+		return null;
+	}
 }

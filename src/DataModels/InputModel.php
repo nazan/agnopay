@@ -7,10 +7,12 @@ use SurfingCrab\AgnoPay\Exceptions\InvalidInputException;
 class InputModel {
     protected $formKey;
     protected $fields;
+    protected $options;
 
-    public function __construct($formKey, $fields) {
+    public function __construct($formKey, $fields, $options) {
         $this->setFormKey($formKey);
         $this->setFields($fields);
+        $this->setOptions($options);
     }
 
     public function getFormKey()
@@ -49,5 +51,33 @@ class InputModel {
         }
 
         $this->fields = $fields;
+    }
+
+    public function getOptions()
+    {
+        return $this->options;
+    }
+
+    public function setOptions($options)
+    {
+        if(!is_array($options)) {
+            throw new InvalidInputException("Options for InputModel must be an associative array.");
+        }
+
+        foreach($options as $key => $option) {
+            if(!isset($option['label']) || !is_scalar($option['label'])) {
+                throw new InvalidInputException("Option '$key' does not specify label with key 'label'. Must be a human readable label string.");
+            }
+
+            if(!isset($option['params']) || !is_array($option['params'])) {
+                throw new InvalidInputException("Option '$key' does not specify a list of query parameters in an HTTP URL.");
+            }
+
+            if(!isset($option['style']) || !is_scalar($option['style'])) {
+                throw new InvalidInputException("Option '$key' does not specify style class value with key 'default'. CSS class.");
+            }
+        }
+
+        $this->options = $options;
     }
 }

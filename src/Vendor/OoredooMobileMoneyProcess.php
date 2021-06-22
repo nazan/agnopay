@@ -6,6 +6,7 @@ use Symfony\Component\HttpFoundation\Request as PsrRequest;
 
 use SurfingCrab\AgnoPay\Exceptions\InvalidInputException;
 use SurfingCrab\AgnoPay\Exceptions\InvalidMethodCallException;
+use SurfingCrab\AgnoPay\Exceptions\FalseAssumptionException;
 
 use SurfingCrab\AgnoPay\DataModels\RequestModel;
 use SurfingCrab\AgnoPay\DataModels\StateModel;
@@ -23,12 +24,10 @@ class OoredooMobileMoneyProcess extends BaseVendorProcess
 
 	const SUCCESS_CODE = '1001';
 
-	const FORM_KEY_CALLBACK_URI_SPEC = 'callback_uri_spec';
 	const FORM_KEY_MERCHANT_SPEC = 'merchant_spec';
 
 	protected $stateTransitions = [
-		'initiated' => ['callback-collected/collectCallbackUri', StateModel::STATE_CLEARED . '/restart'],
-		'callback-collected' => [StateModel::STATE_SUCCESS . '/redirectToOoredooSystem', StateModel::STATE_CLEARED . '/restart']
+		'initiated' => [StateModel::STATE_SUCCESS . '/redirectToVendorSystem', StateModel::STATE_CLEARED . '/restart'],
 	];
 
 	protected $errorCodes = [
@@ -41,141 +40,97 @@ class OoredooMobileMoneyProcess extends BaseVendorProcess
 
 	protected $confirmedState = 'success-callback-captured';
 
-	public function collectCallbackUri(StateModel $currentStateModel, PsrRequest $input = null) {
-		$paymentRequest = $currentStateModel->getRequest();
-
-		$config = $this->config;
-
-		if(!is_null($input)) {
-			$inputData = $this->service->extractData($input);
-            if(!isset($inputData['callback_uri']) || empty($inputData['callback_uri'])) {
-                throw new InvalidInputException("Invalid callback URI for Ooredoo Mobile Money redirect.");
-            }
-
-            $request = $currentStateModel->getRequest();
-
-            $this->service->getDataAccessLayer()->pushState($request->getAlias(), 'callback-collected', [
-                'callback_uri' => $inputData['callback_uri'],
-            ]);
-
-            return $this->proceed($request);
-		}
-
-		return ResultModel::getInputCollectorInstance($this->getQualifiedFormKey(self::FORM_KEY_CALLBACK_URI_SPEC), [
-            'callback_uri' => [
-                'label' => 'Callback URI',
-                'validation' => '/.*/i',
-                'default' => null,
-            ],
-		]);
-	}
-
-	public function redirectToOoredooSystem(StateModel $currentStateModel, PsrRequest $input = null) {
+	public function redirectToVendorSystem(StateModel $currentStateModel, PsrRequest $input) {
 		$requestModel = $currentStateModel->getRequest();
 
-		$config = $this->config;
-
-		if(!is_null($input)) {
-			$inputData = $this->service->extractData($input);
-			
-			$originalPayload = $inputData;
-
-			$inputData = lowerAssocKeys($inputData);
-	
-			if($this->isErrorPayload($inputData)) {
-				if(isset($inputData['message'])) {
-					$errorMessage = $inputData['message'];
-				} else {
-					if(isset($this->errorCodes[$inputData['status']])) {
-						$errorMessage = $this->errorCodes[$inputData['status']];
-					} else {
-						$errorMessage = 'Unexpected error code from vendor.';
-					}
-				}
-	
-				if(in_array($inputData['status'], $this->recoverableErrorCodes)) {
-					return ResultModel::getFeedbackInstance($errorMessage);
-				}
-				
-				throw new InvalidInputException($errorMessage);
-			}
-
-			if(!isset($inputData['status']) || empty($inputData['status'])) {
-                throw new InvalidInputException("Invalid response from Ooredoo Mobile Money.");
-			}
-	
-			if($inputData['status'] !== self::SUCCESS_CODE) {
-				throw new InvalidInputException("Unexpected response from external system. External system API seems to have updated.");
-			}
-
-			return $this->service->success($requestModel->getAlias(), $originalPayload);
-		}
-
 		try {
-			$callbackCollectedState = $this->service->getDataAccessLayer()->getLastStateMatching($requestModel->getAlias(), ['state' => 'callback-collected']);
-		} catch(InvalidMethodCallException $excp) {
-			throw new MissingDataException("Request of alias '{$requestModel->getAlias()}' must have a `callback-collected` state at this point.", 0, $excp);
+			return $this->assumeCallbackFromVendor($requestModel, $input);
+		} catch(FalseAssumptionException $excp) {
+			$amount = $requestModel->getAmount();
+			$amount = str_pad("$amount", 7, "0", STR_PAD_LEFT);
+			
+			$config = $this->config;
+
+			$callbackUri = $config['callback_uri'];
+			
+			$plainText = "{$config['merchant_id']}{$config['merchant_pin']}{$config['merchant_key']}{$requestModel->getAlias()}{$amount}";
+			$signature = hash("sha1", $plainText);
+
+			return ResultModel::getInputCollectorRedirectInstance($this->getQualifiedFormKey(self::FORM_KEY_MERCHANT_SPEC), [
+				'MerID' => [
+					'label' => 'Merchant ID',
+					'validation' => '/.*/i',
+					'default' => $config['merchant_id'],
+				],
+				'TxnId' => [
+					'label' => 'Transaction ID',
+					'validation' => '/.*/i',
+					'default' => $requestModel->getAlias(),
+				],
+				'PayAmt' => [
+					'label' => 'Payment Amount',
+					'validation' => '/.*/i',
+					'default' => $amount,
+				],
+				'MerRespURL' => [
+					'label' => 'Callback URI',
+					'validation' => '/.*/i',
+					'default' => $callbackUri,
+				],
+				'Signature' => [
+					'label' => 'Signature',
+					'validation' => '/.*/i',
+					'default' => $signature,
+				],
+			], [], $config['url']);
 		}
-		
-		$callbackUri = $callbackCollectedState->getParameters()['callback_uri'];
-
-		$amount = $requestModel->getAmount();
-		$amount = str_pad("$amount", 7, "0", STR_PAD_LEFT);
-		
-        $plainText = "{$config['merchant_id']}{$config['merchant_pin']}{$config['merchant_key']}{$requestModel->getAlias()}{$amount}";
-		$signature = hash("sha1", $plainText);
-
-		return ResultModel::getInputCollectorRedirectInstance($this->getQualifiedFormKey(self::FORM_KEY_MERCHANT_SPEC), [
-			'MerID' => [
-                'label' => 'Merchant ID',
-                'validation' => '/.*/i',
-                'default' => $config['merchant_id'],
-			],
-			'TxnId' => [
-                'label' => 'Transaction ID',
-                'validation' => '/.*/i',
-                'default' => $requestModel->getAlias(),
-			],
-			'PayAmt' => [
-                'label' => 'Payment Amount',
-                'validation' => '/.*/i',
-                'default' => $amount,
-			],
-			'MerRespURL' => [
-                'label' => 'Callback URI',
-                'validation' => '/.*/i',
-                'default' => $callbackUri,
-			],
-			'Signature' => [
-                'label' => 'Signature',
-                'validation' => '/.*/i',
-                'default' => $signature,
-            ],
-		], $config['url']);
 	}
 
-	/*
-	public function restart($currentStep, $payload) {
-		$paymentRequest = $currentStep->paymentRequest;
+	private function assumeCallbackFromVendor(RequestModel $requestModel, PsrRequest $input) {
+		$inputData = $this->service->extractData($input);
+			
+		$originalPayload = $inputData;
 
-		$paymentRequest = $this->paymentRequestService->setPaymentRequestState($paymentRequest, PaymentRequest::STATE_PENDING);
+		$inputData = lowerAssocKeys($inputData);
 
-		$processors = explode(';', $paymentRequest->payment_processors);
+		if($this->isErrorPayload($inputData)) {
+			if(isset($inputData['message'])) {
+				$errorMessage = $inputData['message'];
+			} else {
+				if(isset($this->errorCodes[$inputData['status']])) {
+					$errorMessage = $this->errorCodes[$inputData['status']];
+				} else {
+					$errorMessage = 'Unexpected error code from vendor.';
+				}
+			}
 
-		if(in_array(static::PROCESSOR_KEY, $processors)) {
-			$removeIndex = array_search(static::PROCESSOR_KEY, $processors);
-			array_splice($processors, $removeIndex, 1);
-			$paymentRequest->payment_processors = implode(';', $processors);
-			$paymentRequest->save();
+			if(in_array($inputData['status'], $this->recoverableErrorCodes)) {
+				throw new VendorFailureException($errorMessage, 0, null, [
+					['label' => 'Try another vendor.', 'style' => '', 'params' => [static::INTENDED_TARGET_QUERY_PARAM_KEY => StateModel::STATE_CLEARED]]
+				]);
+			}
+			
+			throw new InvalidInputException($errorMessage);
 		}
 
-		if($currentStep->sequence > 0) {
-			$this->updateState($paymentRequest, 'init', ['state_before_restart' => $currentStep->state]);
+		if(!isset($inputData['status']) || empty($inputData['status'])) {
+			throw new FalseAssumptionException("Invalid response from vendor.");
 		}
 
-		return $this->defaultRedirect($paymentRequest->alias);
+		if($inputData['status'] !== self::SUCCESS_CODE) {
+			throw new InvalidInputException("Unexpected response from external system. External system API seems to have updated.");
+		}
+
+		return $this->service->success($requestModel->getAlias(), $originalPayload);
 	}
-	*/
+
+	public function restart(StateModel $currentStateModel, PsrRequest $input) {
+        $request = $currentStateModel->getRequest();
+
+        $this->service->getDataAccessLayer()->pushState($request->getAlias(), StateModel::STATE_CLEARED, []);
+
+        return ResultModel::getMutatedInstance();
+    }
 
 	public function makeHash($inputData) {
 		$config = $this->config;
@@ -227,16 +182,12 @@ class OoredooMobileMoneyProcess extends BaseVendorProcess
 		if($isWebhook) {
 			throw new InvalidInputException("Chosen payment processor does not support webhook calls.");
 		}
-        
-        if(!isset($inputData['transactionId']) || empty($inputData['transactionId'])) {
-            throw new InvalidInputException("Invalid transaction ID in BML Connect callback payload.");
-        }
 
-		$inputData = lowerAssocKeys($inputData);
+		$inputLower = lowerAssocKeys($input);
 
-		$alias = my_array_get($inputData, 'merchanttxnid', null);
+		$alias = my_array_get($inputLower, 'merchanttxnid', null);
 
-		if(is_null($paymentNumber)) {
+		if(is_null($alias)) {
 			throw new InvalidInputException('Unable to extract payment request identifier.');
 		}
 
@@ -244,6 +195,12 @@ class OoredooMobileMoneyProcess extends BaseVendorProcess
 	}
 
 	public function extractIntendedTargetState(PsrRequest $request, RequestModel $pcr) {
+		$targetState = parent::extractIntendedTargetState($request, $pcr);
+
+		if(!is_null($targetState)) {
+			return $targetState;
+		}
+
 		$inputData = $this->service->extractData($request);
 		
 		$inputData = lowerAssocKeys($inputData);

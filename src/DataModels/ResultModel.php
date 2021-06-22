@@ -20,10 +20,13 @@ class ResultModel {
 
     protected $message;
 
+    protected $options;
+
     public function __construct()
     {
         $this->input = null;
         $this->message = '';
+        $this->options = null;
     }
 
     public function setAsInputCollector(InputModel $input)
@@ -56,28 +59,29 @@ class ResultModel {
         $this->input = null;
     }
 
-    public function setAsFeedback(string $message)
+    public function setAsFeedback(string $message, $options = null)
     {
         $this->type = self::TYPE_FEEDBACK;
         $this->input = null;
         $this->message = $message;
+        $this->options = $options;
     }
 
-    public static function getInputCollectorInstance($formKey, $fields)
+    public static function getInputCollectorInstance($formKey, $fields, $options)
     {
         $inst = new self();
         $inst->setAsInputCollector(
-            new InputModel($formKey, $fields)
+            new InputModel($formKey, $fields, $options)
         );
 
         return $inst;
     }
 
-    public static function getInputCollectorRedirectInstance($formKey, $fields, $redirectUri)
+    public static function getInputCollectorRedirectInstance($formKey, $fields, $options, $redirectUri)
     {
         $inst = new self();
         $inst->setAsInputCollectorRedirect(
-            new RedirectInputModel($formKey, $fields, $redirectUri)
+            new RedirectInputModel($formKey, $fields, $options, $redirectUri)
         );
 
         return $inst;
@@ -107,10 +111,10 @@ class ResultModel {
         return $inst;
     }
 
-    public static function getFeedbackInstance(string $message)
+    public static function getFeedbackInstance(string $message, $options = null)
     {
         $inst = new self();
-        $inst->setAsFeedback($message);
+        $inst->setAsFeedback($message, $options);
 
         return $inst;
     }

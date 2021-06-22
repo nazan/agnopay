@@ -17,4 +17,6 @@ interface DataLayerInterface {
     public function getCurrentState($alias): StateModel;
 
     public function getLastStateMatching($alias, array $conditions = []): StateModel;
+
+    public function getFailedVendorProfiles($alias): array;
 }

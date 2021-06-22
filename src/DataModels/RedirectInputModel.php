@@ -7,8 +7,8 @@ use SurfingCrab\AgnoPay\Exceptions\InvalidInputException;
 class RedirectInputModel extends InputModel {
     protected $redirectUri;
 
-    public function __construct($formKey, $fields, $redirectUri) {
-        parent::__construct($formKey, $fields);
+    public function __construct($formKey, $fields, $options, $redirectUri) {
+        parent::__construct($formKey, $fields, []);
         $this->setRedirectUri($redirectUri);
     }
 

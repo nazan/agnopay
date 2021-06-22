@@ -14,7 +14,8 @@
     ],
     "require": {
         "bankofmaldives/bml-connect-php": "^2.0",
-        "symfony/http-foundation": "^5.3"
+        "symfony/http-foundation": "^5.3",
+        "nesbot/carbon": "^2.49"
     },
     "autoload": {
         "psr-4": {"SurfingCrab\\AgnoPay\\": "src/"},
