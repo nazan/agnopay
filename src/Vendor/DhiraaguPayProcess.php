@@ -95,8 +95,10 @@ class DhiraaguPayProcess extends BaseVendorProcess
             "PaymentInvoiceNumber" => $requestModel->getAlias(),
             "TransactionDescription" => 'TXN on ' . md5(strtotime('now'))
         ];
+
+		\Log::debug('payment creation request payload', $data);
 		
-		$apiResponse = $this->post($config['payment_url'], json_encode($data), 'POST');
+		$apiResponse = $this->post($config['payment_url'], $data, 'POST');
 
 		$this->service->getDataAccessLayer()->pushState($requestModel->getAlias(), static::STEP_TXN_CREATED, [
             'reference_id' => $apiResponse['resultData']['referenceId'],
@@ -147,7 +149,7 @@ class DhiraaguPayProcess extends BaseVendorProcess
             'TransactionDescription' => $dhiraaguPayTransaction['transaction_description']
         ];
 
-        $response = $this->post($config['otp_verify_url'], json_encode($body), 'POST');
+        $response = $this->post($config['otp_verify_url'], $body, 'POST');
 
 		/*
         paymentLog(
@@ -206,14 +208,9 @@ class DhiraaguPayProcess extends BaseVendorProcess
 
 		$guzzOpts = [
 			'headers' => $headers,
-			'debug' => true,
+			'form_params' => $body,
+			//'debug' => true,
 		];
-
-		if(is_string($body)) {
-			$guzzOpts['json'] = json_decode($body, true);
-		} else {
-			$guzzOpts['form_params'] = $body;
-		}
 
         try {
             $resp = $client->request($method, $uri, $guzzOpts);
