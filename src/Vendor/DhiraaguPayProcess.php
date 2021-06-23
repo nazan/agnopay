@@ -98,7 +98,7 @@ class DhiraaguPayProcess extends BaseVendorProcess
 		
 		$apiResponse = $this->post($config['payment_url'], $data, 'POST');
 
-		$this->service->getDataAccessLayer()->pushState($request->getAlias(), static::STEP_TXN_CREATED, [
+		$this->service->getDataAccessLayer()->pushState($requestModel->getAlias(), static::STEP_TXN_CREATED, [
             'reference_id' => $apiResponse['resultData']['referenceId'],
             'transaction_id' => $apiResponse['transactionId'],
             'destination_number' => $destinationNumber,
