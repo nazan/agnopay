@@ -209,31 +209,31 @@ class DhiraaguPayProcess extends BaseVendorProcess
             ]);
 
             return json_decode($resp->getBody(), true);
-        } catch (ClientException $excp) {
+        } catch(\Exception $excp) {
+			\Log::debug('Guzzle call error.', [$excp->getMessage()]);
+		} catch (ClientException $excp) {
+			throw $excp;
 			/*
 			\Log::debug("Error from Dhiraagu payment gateway.", [
                 'uri' => $uri,
                 'response_body' => $excp->hasResponse() ? Psr7\str($excp->getResponse()) : "Response Empty",
 			]);
-			*/
-            
+
             if($excp->hasResponse()) {
                 $errorResp = json_decode($excp->getResponse()->getBody(), true);
 
-				/*
                 \Log::info("Error response from Dhiraagu", [
                     'transaction_id' => isset($errorResp['transactionId']) ? $errorResp['transactionId'] : null,
                     'transaction_status' => isset($errorResp['transactionStatus']) ? $errorResp['transactionStatus'] : null,
                     'reference_id' => isset($errorResp['referenceId']) ? $errorResp['referenceId'] : null,
                     'error_message' => isset($errorResp['resultData']) && isset($errorResp['resultData']['message']) ? $errorResp['resultData']['message'] : null,
 				]);
-				*/
-
+				
                 if(isset($errorResp['resultData']) && isset($errorResp['resultData']['message'])) {
-                    $msgKey = trim(strtolower($errorResp['resultData']['message']));
-    
+					$msgKey = trim(strtolower($errorResp['resultData']['message']));
+					
 					$errorRespMsg = array_key_exists($msgKey, $this->friendlyRespMap) ? $this->friendlyRespMap[$msgKey] : static::DEFAULT_ERROR_MSG;
-
+					
 					throw new RecoverableErrorException($errorRespMsg, 0, $excp, [
 						'title' => 'Dhiraagu Pay systems error',
 						'message' => $errorRespMsg
@@ -245,6 +245,7 @@ class DhiraaguPayProcess extends BaseVendorProcess
 				'title' => 'Dhiraagu Pay systems error',
 				'message' => static::DEFAULT_ERROR_MSG
 			]);
+			*/
         }
     }
 
@@ -261,6 +262,7 @@ class DhiraaguPayProcess extends BaseVendorProcess
                 return $this->getAccessToken();
             }
 
+			\Log::debug('token from cache', [$response['access_token']]);
             return $response['access_token'];
         }
 
