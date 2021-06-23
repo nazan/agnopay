@@ -199,6 +199,8 @@ class DhiraaguPayProcess extends BaseVendorProcess
             "Authorization" => "Bearer {$accessToken}",
             //'Content-Type' => 'application/x-www-form-urlencoded'
 		];
+
+		\Log::debug('guzzle call headers', $headers);
 		
 		$client = $this->getTransport();
 
@@ -296,7 +298,7 @@ class DhiraaguPayProcess extends BaseVendorProcess
 
             $expires_in = Carbon::parse($response['.expires']);
 
-            $this->service->getCacher()->put(self::CACHE_KEY_ACCESS_TOKEN, json_encode($response), $expires_in);
+            $this->service->getCacher()->put(self::CACHE_KEY_ACCESS_TOKEN, json_encode($response));
 
             return $response['access_token'];
         } catch (ClientException $excp) {
