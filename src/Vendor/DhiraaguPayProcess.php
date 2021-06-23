@@ -96,7 +96,7 @@ class DhiraaguPayProcess extends BaseVendorProcess
             "TransactionDescription" => 'TXN on ' . md5(strtotime('now'))
         ];
 		
-		$apiResponse = $this->post($config['payment_url'], $data, 'POST');
+		$apiResponse = $this->post($config['payment_url'], json_encode($data), 'POST');
 
 		$this->service->getDataAccessLayer()->pushState($requestModel->getAlias(), static::STEP_TXN_CREATED, [
             'reference_id' => $apiResponse['resultData']['referenceId'],
@@ -147,7 +147,7 @@ class DhiraaguPayProcess extends BaseVendorProcess
             'TransactionDescription' => $dhiraaguPayTransaction['transaction_description']
         ];
 
-        $response = $this->post($config['otp_verify_url'], $body, 'POST');
+        $response = $this->post($config['otp_verify_url'], json_encode($body), 'POST');
 
 		/*
         paymentLog(
@@ -204,12 +204,19 @@ class DhiraaguPayProcess extends BaseVendorProcess
 		
 		$client = $this->getTransport();
 
+		$guzzOpts = [
+			'headers' => $headers,
+			'debug' => true,
+		];
+
+		if(is_string($body)) {
+			$guzzOpts['json'] = $body;
+		} else {
+			$guzzOpts['form_params'] = $body;
+		}
+
         try {
-            $resp = $client->request($method, $uri, [
-                'headers' => $headers,
-                'form_params' => $body,
-				'debug' => true,
-            ]);
+            $resp = $client->request($method, $uri, $guzzOpts);
 
             return json_decode($resp->getBody(), true);
         } catch(\Exception $excp) {
