@@ -89,11 +89,11 @@ class DhiraaguPayProcess extends BaseVendorProcess
 		$data = [
             "Username" => $config['username'],
             "MerchantKey" => $config['merchant_key'],
-            "OriginationNumber" => $config['origination_number_allied'],
+            "OriginationNumber" => $config['origination_number'],
             "DestinationNumber" => $destinationNumber,
-            "Amount" => floatval($requestModel->getAmount()),
+            "Amount" => 1, //floatval($requestModel->getAmount()),
             "PaymentInvoiceNumber" => $requestModel->getAlias(),
-            "TransactionDescription" => '-'
+            "TransactionDescription" => 'TXN on ' . md5(strtotime('now'))
         ];
 		
 		$apiResponse = $this->post($config['payment_url'], $data, 'POST');
@@ -197,7 +197,7 @@ class DhiraaguPayProcess extends BaseVendorProcess
         $accessToken = $this->getAccessToken();
         $headers = [
             "Authorization" => "Bearer {$accessToken}",
-            'Content-Type' => 'application/x-www-form-urlencoded'
+            //'Content-Type' => 'application/x-www-form-urlencoded'
 		];
 		
 		$client = $this->getTransport();
