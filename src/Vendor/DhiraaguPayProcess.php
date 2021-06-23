@@ -210,7 +210,7 @@ class DhiraaguPayProcess extends BaseVendorProcess
 		];
 
 		if(is_string($body)) {
-			$guzzOpts['json'] = $body;
+			$guzzOpts['json'] = json_decode($body, true);
 		} else {
 			$guzzOpts['form_params'] = $body;
 		}
