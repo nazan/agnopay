@@ -207,7 +207,8 @@ class DhiraaguPayProcess extends BaseVendorProcess
         try {
             $resp = $client->request($method, $uri, [
                 'headers' => $headers,
-                'form_params' => $body
+                'form_params' => $body,
+				'debug' => true,
             ]);
 
             return json_decode($resp->getBody(), true);
