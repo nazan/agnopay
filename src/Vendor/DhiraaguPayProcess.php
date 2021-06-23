@@ -211,6 +211,7 @@ class DhiraaguPayProcess extends BaseVendorProcess
             return json_decode($resp->getBody(), true);
         } catch(\Exception $excp) {
 			\Log::debug('Guzzle call error.', [$excp->getMessage()]);
+			throw $excp;
 		} catch (ClientException $excp) {
 			throw $excp;
 			/*
