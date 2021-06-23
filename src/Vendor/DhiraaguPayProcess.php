@@ -208,7 +208,7 @@ class DhiraaguPayProcess extends BaseVendorProcess
 
 		$guzzOpts = [
 			'headers' => $headers,
-			'multipart' => $body,
+			'form_params' => $body,
 			//'debug' => true,
 		];
 
