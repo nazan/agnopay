@@ -59,7 +59,7 @@ class DhiraaguPayProcess extends BaseVendorProcess
 	public function createTransaction(StateModel $currentStateModel, PsrRequest $input) {
 		$request = $currentStateModel->getRequest();
 		try {
-			$this->assumeTransactionCreationInputIncluded($request, $input);
+			return $this->assumeTransactionCreationInputIncluded($request, $input);
 		} catch(FalseAssumptionException $excp) {
 			return ResultModel::getInputCollectorInstance($this->getQualifiedFormKey(self::FORM_KEY_DEST_NUMBER), [
 				'destination_number' => [
@@ -86,14 +86,19 @@ class DhiraaguPayProcess extends BaseVendorProcess
 
 		$config = $this->config;
 
+		//$now = new Carbon();
+		//$nowStr = $now->format('Y-m-d H:i:s');
+
+		$reqAlias = $requestModel->getAlias();
+
 		$data = [
             "Username" => $config['username'],
             "MerchantKey" => $config['merchant_key'],
             "OriginationNumber" => $config['origination_number'],
             "DestinationNumber" => $destinationNumber,
-            "Amount" => 1, //floatval($requestModel->getAmount()),
-            "PaymentInvoiceNumber" => 'abc', //$requestModel->getAlias(),
-            "TransactionDescription" => 'abcdef', //'TXN on ' . md5(strtotime('now')),
+            "Amount" => floatval($requestModel->getAmount()),
+            "PaymentInvoiceNumber" => substr($reqAlias, 0, 8),
+            "TransactionDescription" => $reqAlias,
         ];
 
 		\Log::debug('payment creation request payload', $data);
@@ -107,7 +112,7 @@ class DhiraaguPayProcess extends BaseVendorProcess
             'transaction_description' => $apiResponse['transactionDescription']
         ]);
 		
-		return $this->defaultRedirect($requestModel->alias);
+		return ResultModel::getMutatedInstance();
 	}
 
 	public function verifyOtp(StateModel $currentStateModel, PsrRequest $input) {
@@ -151,26 +156,9 @@ class DhiraaguPayProcess extends BaseVendorProcess
 
         $response = $this->post($config['otp_verify_url'], $body, 'POST');
 
-		/*
-        paymentLog(
-            $paymentRequest,
-            'info',
-            static::STEP_OTP_VERIFIED,
-            json_encode($response, JSON_UNESCAPED_SLASHES)
-		);
-		*/
+		$requestModel = $currentStateModel->getRequest();
 
-		$this->paymentRequestService->markPaymentProcessed($paymentRequest, 'success', '', true);
-
-		$this->updateState($paymentRequest, static::STEP_OTP_VERIFIED, $response);
-
-		if($paymentRequest->callback_via_redirect) {
-			return redirect($this->paymentRequestService->getPaymentConfirmationEnclosedUrl($paymentRequest));
-		}
-
-		$this->paymentRequestService->notifyOriginalApp($paymentRequest);
-
-		return $this->paymentRequestService->makeResponseForCaller(false);
+		return $this->service->success($requestModel->getAlias(), $dhiraaguPayTransaction);
 	}
 
 	/*
