@@ -208,7 +208,7 @@ class DhiraaguPayProcess extends BaseVendorProcess
 				throw new ExternalSystemErrorException('Payload in response from Dhiraagu Pay has unexpected format. JSON data expected.');
 			}
 
-			return json_decode($response->getBody()->getContents(), true);
+			return $response->json();
         } catch(GuzzleException $excp) {
 			\Log::debug('guzzle call error.');
 			\Log::debug($excp->getResponse()->getBody()->getContents());
