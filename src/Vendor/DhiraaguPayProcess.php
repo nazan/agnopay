@@ -92,8 +92,8 @@ class DhiraaguPayProcess extends BaseVendorProcess
             "OriginationNumber" => $config['origination_number'],
             "DestinationNumber" => $destinationNumber,
             "Amount" => 1, //floatval($requestModel->getAmount()),
-            "PaymentInvoiceNumber" => $requestModel->getAlias(),
-            "TransactionDescription" => 'TXN on ' . md5(strtotime('now'))
+            "PaymentInvoiceNumber" => 'abc', //$requestModel->getAlias(),
+            "TransactionDescription" => 'abcdef', //'TXN on ' . md5(strtotime('now')),
         ];
 
 		\Log::debug('payment creation request payload', $data);
