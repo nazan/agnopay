@@ -51,6 +51,10 @@ abstract class BaseVendorProcess
 		
 		$routine = $this->getNextAction($currentState, $targetState);
 
+		$vendorImplClass = get_class($this);
+
+		\Log::debug('Calling vendor routine.', compact('vendorImplClass', 'routine'));
+
         return $this->callRoutine($routine, $currentStateModel, $input);
 	}
 
