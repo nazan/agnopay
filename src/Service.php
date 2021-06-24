@@ -307,6 +307,8 @@ class Service {
         $allVendorProfiles = $this->getVendorProfiles();
         $failed = $this->dl->getFailedVendorProfiles($request->getAlias());        
 
+        \Log::debug('failed providers (vendors).', compact('failed'));
+
         $profileValidation = [];
         foreach($request->getVendorProfiles() as $profileKey) {
             if(isset($allVendorProfiles[$profileKey]['label']) && !in_array($profileKey, $failed)) {
