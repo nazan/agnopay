@@ -315,7 +315,7 @@ class DhiraaguPayProcess extends BaseVendorProcess
         }
 	}
 
-	private function isJsonResponse() {
+	private function isJsonResponse($response) {
 		if($content_types = $response->getHeader('Content-Type')) {
 			foreach($content_types as $content_type) {
 				if(in_array('application/json', explode(';', $content_type))) {
