@@ -59,7 +59,7 @@ class DhiraaguPayProcess extends BaseVendorProcess
 	public function createTransaction(StateModel $currentStateModel, PsrRequest $input) {
 		$request = $currentStateModel->getRequest();
 		try {
-			$this->assumeTransactionCreationDataIncluded($request, $input);
+			$this->assumeTransactionCreationInputIncluded($request, $input);
 		} catch(FalseAssumptionException $excp) {
 			return ResultModel::getInputCollectorInstance($this->getQualifiedFormKey(self::FORM_KEY_DEST_NUMBER), [
 				'destination_number' => [
@@ -71,7 +71,7 @@ class DhiraaguPayProcess extends BaseVendorProcess
 		}
 	}
 
-	public function assumeTransactionCreationDataIncluded(RequestModel $requestModel, PsrRequest $input) {
+	public function assumeTransactionCreationInputIncluded(RequestModel $requestModel, PsrRequest $input) {
 		$payload = $this->service->extractData($input);
 
 		if(!isset($payload['destination_number'])) {
@@ -199,32 +199,34 @@ class DhiraaguPayProcess extends BaseVendorProcess
         $accessToken = $this->getAccessToken();
         $headers = [
             "Authorization" => "Bearer {$accessToken}",
-            //'Content-Type' => 'application/x-www-form-urlencoded'
 		];
-
-		\Log::debug('guzzle call headers', $headers);
 		
 		$client = $this->getTransport();
-
+		
 		$guzzOpts = [
 			'headers' => $headers,
 			'form_params' => $body,
-			//'debug' => true,
 		];
 
+		\Log::debug('guzzle request.', $method, $guzzOpts);
+
         try {
-            $resp = $client->request($method, $uri, $guzzOpts);
+            $response = $client->request($method, $uri, $guzzOpts);
 
-            return json_decode($resp->getBody(), true);
-        } catch(\Exception $excp) {
-			\Log::debug('Guzzle call error.');
-			$responsePayload = $excp->getResponse()->getBody()->getContents();
-			\Log::debug($responsePayload);
+			\Log::debug('guzzle response.', compact('response'));
+
+			if (!$this->isJsonResponse($response)) {
+				throw new ExternalSystemErrorException('Payload in response from Dhiraagu Pay has unexpected format. JSON data expected.');
+			}
+
+			return json_decode($response->getBody()->getContents(), true);
+        } catch(GuzzleException $excp) {
+			\Log::debug('guzzle call error.');
+			\Log::debug($excp->getResponse()->getBody()->getContents());
 
 			throw $excp;
-		} catch (ClientException $excp) {
+		} /* catch (ClientException $excp) {
 			throw $excp;
-			/*
 			\Log::debug("Error from Dhiraagu payment gateway.", [
                 'uri' => $uri,
                 'response_body' => $excp->hasResponse() ? Psr7\str($excp->getResponse()) : "Response Empty",
@@ -256,8 +258,7 @@ class DhiraaguPayProcess extends BaseVendorProcess
 				'title' => 'Dhiraagu Pay systems error',
 				'message' => static::DEFAULT_ERROR_MSG
 			]);
-			*/
-        }
+        }*/
     }
 
     private function getAccessToken()
@@ -266,9 +267,9 @@ class DhiraaguPayProcess extends BaseVendorProcess
             $response = json_decode($this->service->getCacher()->get(self::CACHE_KEY_ACCESS_TOKEN), true);
 
             $now = Carbon::now();
-            $expires_on = Carbon::parse($response['.expires']);
+            $expiresAt = Carbon::parse($response['.expires']);
 
-            if ($now->gt($expires_on)) {
+            if ($now->gt($expiresAt)) {
                 $this->service->getCacher()->forget(self::CACHE_KEY_ACCESS_TOKEN);
                 return $this->getAccessToken();
             }
@@ -276,10 +277,6 @@ class DhiraaguPayProcess extends BaseVendorProcess
 			\Log::debug('token from cache', [$response['access_token']]);
             return $response['access_token'];
         }
-
-        $header = [
-            'Content-Type' => 'application/x-www-form-urlencoded'
-		];
 		
 		$config = $this->config;
 
@@ -287,7 +284,7 @@ class DhiraaguPayProcess extends BaseVendorProcess
 
         try {
             $response = $client->request('POST', $config['auth_url'], [
-                'headers' => $header,
+                'headers' => [],
                 'form_params' => [
                     'grant_type' => 'password',
                     'username' => $config['auth_username'],
@@ -295,20 +292,20 @@ class DhiraaguPayProcess extends BaseVendorProcess
                 ]
             ]);
 
-
-            if ($content_types = $response->getHeader('Content-Type')) {
-                foreach ($content_types as $content_type) {
-                    if (in_array('application/json', explode(';', $content_type))) {
-                        $response = json_decode($response->getBody(true), true);
-                    }
-                }
+            if ($this->isJsonResponse($response)) {
+				$response = json_decode($response->getBody()->getContents(), true);
             }
+			
+			if(!isset($response['access_token'])) {
+				throw new ExternalSystemErrorException('No access token in response from Dhiraagu Pay systems.');
+			}
 
-            $expires_in = Carbon::parse($response['.expires']);
+			if(isset($response['.expires'])) {
+				\Log::debug('just before caching token.', compact('response'));
+				$this->service->getCacher()->put(self::CACHE_KEY_ACCESS_TOKEN, json_encode($response));
+			}
 
-            $this->service->getCacher()->put(self::CACHE_KEY_ACCESS_TOKEN, json_encode($response));
-
-            return $response['access_token'];
+			return $response['access_token'];
         } catch (ClientException $excp) {
             $response = $excp->getResponse();
             $errorCode = $response->getStatusCode();
@@ -316,6 +313,18 @@ class DhiraaguPayProcess extends BaseVendorProcess
 			
 			throw new ExternalSystemErrorException("Access token retrieval call to Dhiraagu Pay systems responded with code '$errorCode'.", null, $excp);
         }
+	}
+
+	private function isJsonResponse() {
+		if($content_types = $response->getHeader('Content-Type')) {
+			foreach($content_types as $content_type) {
+				if(in_array('application/json', explode(';', $content_type))) {
+					return true;
+				}
+			}
+		}
+
+		return false;
 	}
 
 	public function supportedCurrencies(): array
