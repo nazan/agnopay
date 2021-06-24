@@ -117,7 +117,7 @@ class DhiraaguPayProcess extends BaseVendorProcess
 
 	public function verifyOtp(StateModel $currentStateModel, PsrRequest $input) {
 		try {
-			$this->assumeOtpIncluded($request, $input);
+			return $this->assumeOtpIncluded($request, $input);
 		} catch(FalseAssumptionException $excp) {
 			return ResultModel::getInputCollectorInstance($this->getQualifiedFormKey(self::FORM_KEY_DEST_NUMBER), [
 				'otp' => [
