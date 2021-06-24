@@ -41,7 +41,7 @@ class DhiraaguPayProcess extends BaseVendorProcess
 
 	protected $stateTransitions = [
 		StateModel::STATE_INIT => [self::STEP_TXN_CREATED . '/createTransaction'],
-		self::STEP_TXN_CREATED => [self::STEP_OTP_VERIFIED . '/verifyOtp'], // , 'init/restart'
+		self::STEP_TXN_CREATED => [self::STEP_OTP_VERIFIED . '/verifyOtp', StateModel::STATE_CLEARED . '/restart'],
 	];
 
 	protected $friendlyRespMap = [
@@ -126,7 +126,9 @@ class DhiraaguPayProcess extends BaseVendorProcess
 					'validation' => '/.*/i',
 					'default' => null,
 				]
-			], []);
+			], [
+				['label' => 'Try another vendor.', 'style' => '', 'params' => [static::INTENDED_TARGET_QUERY_PARAM_KEY => StateModel::STATE_CLEARED]]
+			]);
 		}
 	}
 
@@ -134,7 +136,6 @@ class DhiraaguPayProcess extends BaseVendorProcess
 		$payload = $this->service->extractData($input);
 
 		if(!isset($payload['otp'])) {
-			\Log::debug('no otp in input.');
 			throw new FalseAssumptionException('This payment collection not yet ready to confirm transaction using OTP. False assumption detected.');
 		}
 
@@ -163,19 +164,13 @@ class DhiraaguPayProcess extends BaseVendorProcess
 		return $this->service->success($requestModel->getAlias(), $dhiraaguPayTransaction);
 	}
 
-	/*
 	public function restart(StateModel $currentStateModel, PsrRequest $input) {
-		$paymentRequest = $currentStep->paymentRequest;
+        $request = $currentStateModel->getRequest();
 
-		$paymentRequest = $this->paymentRequestService->setPaymentRequestState($paymentRequest, PaymentRequest::STATE_PENDING);
+        $this->service->getDataAccessLayer()->pushState($request->getAlias(), StateModel::STATE_CLEARED, []);
 
-		if($currentStep->sequence > 0) {
-			$this->updateState($paymentRequest, 'init', ['state_before_restart' => $currentStep->state]);
-		}
-
-		return $this->defaultRedirect($paymentRequest->alias);
-	}
-	*/
+        return ResultModel::getMutatedInstance();
+    }
 	
 	public function getTransport() {
 		if(!empty(static::$httpClient)) {
