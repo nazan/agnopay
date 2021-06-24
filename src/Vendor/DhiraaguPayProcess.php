@@ -208,7 +208,7 @@ class DhiraaguPayProcess extends BaseVendorProcess
 			'form_params' => $body,
 		];
 
-		\Log::debug('guzzle request.', $method, $guzzOpts);
+		\Log::debug('guzzle request.', compact('method', 'guzzOpts'));
 
         try {
             $response = $client->request($method, $uri, $guzzOpts);
