@@ -37,6 +37,7 @@ class DhiraaguPayProcess extends BaseVendorProcess
 	const STEP_TXN_CREATED = 'transaction-created';
 
 	const FORM_KEY_DEST_NUMBER = 'destination_number';
+	const FORM_KEY_OTP = 'otp';
 
 	protected $stateTransitions = [
 		StateModel::STATE_INIT => [self::STEP_TXN_CREATED . '/createTransaction'],
@@ -119,11 +120,11 @@ class DhiraaguPayProcess extends BaseVendorProcess
 		try {
 			return $this->assumeOtpIncluded($currentStateModel, $input);
 		} catch(FalseAssumptionException $excp) {
-			return ResultModel::getInputCollectorInstance($this->getQualifiedFormKey(self::FORM_KEY_DEST_NUMBER), [
+			return ResultModel::getInputCollectorInstance($this->getQualifiedFormKey(self::FORM_KEY_OTP), [
 				'otp' => [
 					'label' => 'One Time Password',
 					'validation' => '/.*/i',
-					'default' => '',
+					'default' => null,
 				]
 			], []);
 		}
@@ -133,6 +134,7 @@ class DhiraaguPayProcess extends BaseVendorProcess
 		$payload = $this->service->extractData($input);
 
 		if(!isset($payload['otp'])) {
+			\Log::debug('no otp in input.');
 			throw new FalseAssumptionException('This payment collection not yet ready to confirm transaction using OTP. False assumption detected.');
 		}
 
