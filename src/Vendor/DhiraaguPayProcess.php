@@ -25,6 +25,8 @@ use GuzzleHttp\Exception\RequestException;
 
 use Carbon\Carbon;
 
+use SurfingCrab\AgnoPay\Service as AgnoPayService;
+
 class DhiraaguPayProcess extends BaseVendorProcess
 {
 	const VENDOR_KEY = 'dhiraagupay';
@@ -38,6 +40,8 @@ class DhiraaguPayProcess extends BaseVendorProcess
 
 	const FORM_KEY_DEST_NUMBER = 'destination_number';
 	const FORM_KEY_OTP = 'otp';
+
+	const CURRENCY_MVR = 'MVR';
 
 	protected $stateTransitions = [
 		StateModel::STATE_INIT => [self::STEP_TXN_CREATED . '/createTransaction'],
@@ -92,12 +96,16 @@ class DhiraaguPayProcess extends BaseVendorProcess
 
 		$reqAlias = $requestModel->getAlias();
 
+		$amountInLD = $requestModel->getAmount();
+
+		$amount = floatval($amountInLD / AgnoPayService::$conversionTable(static::CURRENCY_MVR));
+
 		$data = [
             "Username" => $config['username'],
             "MerchantKey" => $config['merchant_key'],
             "OriginationNumber" => $config['origination_number'],
             "DestinationNumber" => $destinationNumber,
-            "Amount" => floatval($requestModel->getAmount()),
+            "Amount" => $amount,
             "PaymentInvoiceNumber" => substr($reqAlias, 0, 8),
             "TransactionDescription" => $reqAlias,
         ];
@@ -317,7 +325,7 @@ class DhiraaguPayProcess extends BaseVendorProcess
 
 	public function supportedCurrencies(): array
     {
-        return ['MVR'];
+        return [static::CURRENCY_MVR];
     }
 
 	// Callback not used in this payment processor.
