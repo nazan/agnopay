@@ -98,7 +98,7 @@ class DhiraaguPayProcess extends BaseVendorProcess
 
 		$amountInLD = $requestModel->getAmount();
 
-		$amount = floatval($amountInLD / AgnoPayService::$conversionTable(static::CURRENCY_MVR));
+		$amount = floatval($amountInLD / AgnoPayService::$conversionTable[static::CURRENCY_MVR]);
 
 		$data = [
             "Username" => $config['username'],
